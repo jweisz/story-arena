@@ -1,0 +1,19 @@
+[project]
+name = "eop-workshop"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Justin Weisz",email = "jweisz@us.ibm.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13,<4.0"
+dependencies = [
+    "beeai-framework (>=0.1.21,<0.2.0)",
+    "wikipedia-api (>=0.8.1,<0.9.0)",
+    "rich (>=14.0.0,<15.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
