@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Debug Story Arena",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/story_arena.py",
+            "args": [
+                "${workspaceFolder}/J.txt",
+                "${workspaceFolder}/K.txt",
+                "${workspaceFolder}/M.txt",
+                "--story-prompt",
+                "${workspaceFolder}/story_prompt.txt"
+            ]
+        }
+    ]
+}
