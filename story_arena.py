@@ -60,18 +60,17 @@ async def run_ideation_phase(agent) -> str:
 async def run_consensus_phase(agents, num_agent_turns=20) -> list[UserMessage]:
     max_turns = num_agent_turns * len(agents)
     consensus_prompt = f"""
-        You are in the consensus phase of the story-writing process. The way this phase
-        works is that you will have a conversation with the other writers in the
-        writing room about the ideas you brainstormed in the ideation phase. The goal
-        is to argue for your ideas on the details of the story (setting, characters, conflict, etc.),
-        while remaining open to the arguments of the other writers. It is important to argue for choices
-        that align and support your position statement. It is also important to come to consensus with
-        your fellow writers. How you achieve this balance in the face of conflicts is up to you.
-        If you are satisfied with all of the decisions that have been made, tell the group "I yield" to
-        indicate that you are happy with the decisions made by the group. If the group does not reach
-        consensus after {max_turns} turns (you will get {num_agent_turns} turns), the
-        consensus phase will end, possibly with some decisions left unmade. Do your best
-        to reach consensus before this occurs.
+        You are in the consensus phase of the story-writing process. The way this phase works is
+        that you will have a conversation with the other writers in the writing room about the
+        ideas you brainstormed in the ideation phase. The goal is to argue for your ideas on the
+        details of the story (setting, characters, conflict, etc.), while listening to the
+        arguments of the other writers. It is important to argue for choices that align with and
+        support your position statement. Do not make statements that indicate you are speaking for
+        your fellow writers. Do not prefix your messages with your own name or the names of other
+        writers. When you are satisfied with all of the decisions that have been made, tell the
+        group "I yield." If the group does not reach consensus after {max_turns} turns (you will
+        get {num_agent_turns} turns), the consensus phase will end, possibly with some decisions
+        left unmade. Do your best to reach consensus before this occurs.
         """
 
     active_agents = set(agent['name'] for agent in agents)
@@ -102,7 +101,7 @@ async def run_consensus_phase(agents, num_agent_turns=20) -> list[UserMessage]:
                 # pull out the last message
                 message = result.messages[-1].content[-1].text
                 conversation.append(UserMessage(f"{agent['name']}: {message}"))
-                console.print(f"[magenta][bold]{agent['name']}[/bold]: {message}[/]")
+                console.print(f"[magenta][bold]{agent['name']}[/bold]: [cyan]|[/cyan]{message}[cyan]|[/cyan][/]")
 
                 if "i yield" in message.lower():
                     console.print(f"[green bold]Writer {agent['name']} has yielded[/]")
