@@ -45,10 +45,11 @@ async def run_ideation_phase(agent) -> str:
     ideation_prompt = dedent(
         text="""You are in the Ideation phase of the story-writing process.
              During this phase, your task is to brainstorm story ideas including
-             genre, setting, characters, and conflict. Ideate specific details for each
-             of these story elements. Make sure that your ideas conform to your
-             position statement. Do not insert yourself or your co-writers into
-             the story."""
+             genre, setting, characters, and conflict. Ideate specific details
+             for each of these story elements. Make sure that your ideas conform
+             to your position statement. Give each character a name, but do not
+             insert your own name or the names of your co-authors into the
+             story."""
     )
 
     class IdeationResult(BaseModel):
@@ -59,7 +60,7 @@ async def run_ideation_phase(agent) -> str:
             description="The setting of the story, with specific details of the location/place, the season, the era, etc."
         )
         characters: str = Field(
-            description="A cast of characters who are involved in the story. Each character has a name, backstory, personal details, and personality traits"
+            description="A cast of characters who are involved in the story. Each character has a name, backstory, personal details, and personality traits. Do not include your own name in the list of characters."
         )
         conflict: str = Field(
             description="A description of a type of conflict between one or more of the characters"
@@ -189,9 +190,12 @@ async def run_consensus_phase(agents, num_agent_turns=20) -> list[UserMessage]:
     for agent in agents:
         summary_prompt = dedent(
             text="""This is the conversation you just had
-                 with the other writers in the writing room. Produce a summary of the
-                 major decisions that were made. You will use this summary to aid
-                 your writing process.""")
+                 with the other writers in the writing room. Produce a summary
+                 of the major decisions that were made, keeping in mind that you
+                 may wish to override the consensus decisions that were reached
+                 if you believe that your own views will result in a better
+                 story. You will use this summary to aid your writing
+                 process.""")
 
         console.print(f"[cyan][bold]{agent['name']}'s summary[/bold][/]")
         result = await agent["llm"].create(
@@ -240,26 +244,30 @@ async def run_writing_phase(agents, num_iterations=20) -> Story:
               during the consensus phase. You will work in a round-robin fashion
               with your fellow writers by contributing one sentence to the story
               at a time. Keep the story coherent, but also ensure it meets your
-              own understanding of what the story is supposed to be about. You
-              will have {num_iterations} turns at writing. Use them well.
-              Remember that a story has three parts: the introduction, the body,
-              and the conclusion. Work together to ensure the story contains
-              these three parts and is coherent. Do not insert yourself or your
-              co-writers into the story.""")
+              own goals and understanding of what the story is supposed to be
+              about. You will have {num_iterations} turns at writing. Use them
+              well. Remember that a story has three parts: the introduction, the
+              body, and the conclusion. Work together to ensure the story
+              contains these three parts and is coherent. Do not insert yourself
+              or your co-writers into the story.""")
 
     # write!
     story: Story = Story()
     for i in range(0, num_iterations):
         # invoke each agent for a turn at the pen
         for agent in agents:
+            consensus_summary = agent['consensus_summary']
             story_prompt = dedent(
-                text=f"""It is your turn to add a new sentence
-                      to the story. You are on iteration {i}
-                      of {num_iterations}. This is the story
-                      so far. If you have nothing to
-                      contribute to the story, remain silent
-                      and do not add a new sentence to it.
-                      {story.render()}""")
+                text=f"""
+                This is your understanding of the agreements made during the
+                consensus phase. Use this to guide how you write the story.
+                {consensus_summary}
+
+                It is your turn to add a new sentence to the story. You are on
+                iteration {i} of {num_iterations}. This is the story so far. If
+                you have nothing to contribute to the story, remain silent and
+                do not add a new sentence to it.
+                {story.render()}""")
 
             # for whatever reason, RITS likes to timeout on these calls, so we need to be a bit more
             # agressive...
@@ -304,6 +312,28 @@ async def run_writing_phase(agents, num_iterations=20) -> Story:
                     Sentence(sentence=new_sentence, author=agent["name"])
                 )
     return story
+
+async def generate_story_title(llm, story: Story) -> str:
+    title_prompt = dedent(
+        text="""You are a publisher. Your job is to read a story and generate a
+             compelling title for it that captures the essence of the story and
+             makes it enticing for the reader to want to read the story.""")
+
+    class Title(BaseModel):
+        title: str = Field(description="The title of the story")
+
+    result = await llm.create_structure(
+        schema=Title,
+        messages=[
+            SystemMessage(title_prompt),
+            UserMessage(f"This is the story:\n{story.render()}")
+        ],
+        max_retries=5,
+        abort_signal=AbortSignal.timeout(duration=20),
+    )
+
+    title = result.object['title']
+    return title
 
 
 async def main() -> None:
@@ -403,9 +433,12 @@ async def main() -> None:
     console.print(f"[bold cyan]{'*' * 72}[/]")
     console.print("[bold cyan]Starting Writing Phase...[/]")
     story = await run_writing_phase(agents=agents, num_iterations=10)
+    title = await generate_story_title(llm=llm, story=story)
 
     console.print(f"[bold cyan]{'*' * 72}[/]")
-    console.print("[bold cyan]Final Story[/]")
+    console.print(f"[bold cyan]{title}[/]")
+    console.print(f"[cyan]by {', '.join(agent['name'] for agent in agents)}[/]")
+    console.print()
     console.print(f"[cyan]{story.render()}[/cyan]")
 
 if __name__ == "__main__":
