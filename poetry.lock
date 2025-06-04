@@ -202,14 +202,14 @@ tests-mypy = ["mypy (>=1.11.1) ; platform_python_implementation == \"CPython\" a
 
 [[package]]
 name = "beeai-framework"
-version = "0.1.21"
+version = "0.1.23"
 description = ""
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "beeai_framework-0.1.21-py3-none-any.whl", hash = "sha256:3005be6e067e7a00de5c3778ceb7f9c260c415cdf7bc4e0864df11f7816ee5e0"},
-    {file = "beeai_framework-0.1.21.tar.gz", hash = "sha256:569ef671c73b341d2c8b765fbdc016de9b254e8ef713e56d4cfbc5726fa6115d"},
+    {file = "beeai_framework-0.1.23-py3-none-any.whl", hash = "sha256:4807fd5283a2e68f3ce11fc84175bf5f9b5b2459f2ed05cac2981138d21c1fde"},
+    {file = "beeai_framework-0.1.23.tar.gz", hash = "sha256:fb0977250b3719e8dd77815bca828236ddd6943f72d33ceb006c371556e21a7f"},
 ]
 
 [package.dependencies]
@@ -224,8 +224,9 @@ pydantic-settings = ">=2.9.0,<3.0.0"
 requests = ">=2.32,<3.0"
 
 [package.extras]
-acp = ["acp-sdk (>=0.8.4,<0.9.0)", "uvicorn (>=0.34.2,<0.35.0)"]
-beeai-platform = ["acp-sdk (>=0.8.4,<0.9.0)", "uvicorn (>=0.34.2,<0.35.0)"]
+a2a = ["a2a-sdk (>=0.2.4,<0.3.0)", "uvicorn (>=0.34.2,<0.35.0)"]
+acp = ["acp-sdk (>=0.10.1,<0.11.0)", "uvicorn (>=0.34.2,<0.35.0)"]
+beeai-platform = ["acp-sdk (>=0.10.1,<0.11.0)", "uvicorn (>=0.34.2,<0.35.0)"]
 duckduckgo = ["duckduckgo-search (>=8.0.2,<9.0.0)"]
 langchain = ["langchain-community (>=0.3.19,<0.4.0)", "langchain-core (>=0.3.41,<0.4.0)", "langchain-ollama (>=0.3.1,<0.4.0)", "langgraph (>=0.3.27,<0.4.0)"]
 mcp = ["mcp (>=1.2.0,<2.0.0)"]

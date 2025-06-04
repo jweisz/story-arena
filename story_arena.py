@@ -45,28 +45,47 @@ async def run_ideation_phase(agent) -> str:
     ideation_prompt = dedent(
         text="""You are in the Ideation phase of the story-writing process.
              During this phase, your task is to brainstorm story ideas including
-             genre, setting, characters, and conflict. Ideate specific details
-             for each of these story elements. Make sure that your ideas conform
-             to your position statement. Give each character a name, but do not
-             insert your own name or the names of your co-authors into the
+             genre, setting, characters, and shape. Ideate specific details
+             for each of these story elements that will serve to support
+             your position statement. Be specific with the details. For example,
+             give your characters names, personalities, and backstories. Do not
+             insert your own name or the names of your co-writers into the
              story."""
     )
 
     class IdeationResult(BaseModel):
+        # TODO: "Narrative shape" instead of conflict?
+        # TODO: how to get the characters to use different forms of dialogue
+        # TODO: "in media res"
         genre: str = Field(
             description="The genre of the story, such as whether it is a tragedy, comedy, satire, romance, etc."
         )
         setting: str = Field(
-            description="The setting of the story, with specific details of the location/place, the season, the era, etc."
+            description="The setting of the story. The setting includes specific details of the location or place, season, era, etc."
         )
         characters: str = Field(
-            description="A cast of characters who are involved in the story. Each character has a name, backstory, personal details, and personality traits. Do not include your own name in the list of characters."
+            description="The characters who are involved in the story. Each character has a name, a backstory, personal details, and personality traits. Do not include your own name in the list of characters."
         )
-        conflict: str = Field(
-            description="A description of a type of conflict between one or more of the characters"
+        # conflict: str = Field(
+        #     description="A description of a type of conflict between one or more of the characters"
+        # )
+        # source: https://bigthink.com/high-culture/vonnegut-shapes/
+        shape: str = Field(
+            description=dedent(
+                text="""The shape of the story. Story shapes are generally represented on a 2-D plane with the x-axis representing the beginning and end of a story and the y-axis representing represents good and bad fortune. Canonical story shapes are:
+                - Man in Hole: The main character gets into trouble then gets out of it again and ends up better off for the experience.
+                - Boy Meets Girl: The main character comes across something wonderful, gets it, loses it, then gets it back forever.
+                - From Bad to Worse: The main character starts off poorly then gets continually worse with no hope for improvement.
+                - Which Way is Up?: The story has a lifelike ambiguity that keeps us from knowing if new developments are good or bad.
+                - Creation Story: In many cultures' creation stories, humankind receives incremental gifts from a deity. Frist major staples like the earth and the sky, then smaller things like sparrows and cell phones. Not a common shape for Western stories, however.
+                - Old Testament: Humankind receives incremental gifts from a deity, but is suddenly ousted from good standing in a fall of enormous proportions.
+                - New Testament: Humankind receives incremental gifts from a deity, is suddenly ousted from good standing, but then receives off-the-charts bliss.
+
+                Other shapes may also be possible. Determine a shape that fits your position statement.
+            """)
         )
         other_elements: str = Field(
-            description="Other elements that are pertinent to the kind of story you want to tell"
+            description="Other elements or details that are pertinent to the kind of story you want to tell"
         )
 
     log_prompt(
@@ -103,7 +122,7 @@ async def run_ideation_phase(agent) -> str:
         Genre: {result.object["genre"]}
         Setting: {result.object["setting"]}
         Characters: {result.object["characters"]}
-        Conflict: {result.object["conflict"]}
+        Shape: {result.object["shape"]}
         Other elements: {result.object["other_elements"]}
         """)
 
@@ -113,8 +132,8 @@ class Utterance(BaseModel):
     message: str = Field(
         description=dedent(
             text="""A single utterance in a chat. The utterance does not contain
-                 the name of the author. It also does not contain any utterances
-                 from anyone else in the chat.""")
+                 the name of its author. It also does not contain any utterances
+                 from any other writers involved in the chat.""")
     )
 
 # Consensus phase with round-robin conversation
@@ -125,7 +144,7 @@ async def run_consensus_phase(agents, num_agent_turns=20) -> list[UserMessage]:
               phase works is that you will have a conversation with the other writers in
               the writing room about the ideas you brainstormed in the ideation phase. The
               goal is to argue for your ideas on the details of the story (setting,
-              characters, conflict, etc.), while listening to the arguments of the other
+              characters, shape, etc.), while considering the arguments of the other
               writers. It is important to argue for choices that align with and support
               your position statement. Do not make statements that indicate you are
               speaking for your fellow writers. Do not prefix your messages with your own
@@ -191,10 +210,11 @@ async def run_consensus_phase(agents, num_agent_turns=20) -> list[UserMessage]:
         summary_prompt = dedent(
             text="""This is the conversation you just had
                  with the other writers in the writing room. Produce a summary
-                 of the major decisions that were made, keeping in mind that you
+                 of your interpretation of the major decisions that were made.
+                 Your interpretation may differ from other writers. You may also
                  may wish to override the consensus decisions that were reached
-                 if you believe that your own views will result in a better
-                 story. You will use this summary to aid your writing
+                 if you believe that your own views will ultimately result in a
+                 better story. You will use this summary to aid your writing
                  process.""")
 
         console.print(f"[cyan][bold]{agent['name']}'s summary[/bold][/]")
@@ -213,7 +233,6 @@ async def run_consensus_phase(agents, num_agent_turns=20) -> list[UserMessage]:
         agent["consensus_summary"] = summary
     return conversation
 
-
 # Writing phase with round-robin writing turns
 class Sentence(BaseModel):
     sentence: str = Field(description="A sentence in a story.")
@@ -221,7 +240,6 @@ class Sentence(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.sentence} [{self.author}]"
-
 
 class Story:
     story: list[Sentence]
@@ -259,15 +277,22 @@ async def run_writing_phase(agents, num_iterations=20) -> Story:
             consensus_summary = agent['consensus_summary']
             story_prompt = dedent(
                 text=f"""
-                This is your understanding of the agreements made during the
+                Below is your understanding of the agreements made during the
                 consensus phase. Use this to guide how you write the story.
+
+                ###
                 {consensus_summary}
+                ###
 
                 It is your turn to add a new sentence to the story. You are on
-                iteration {i} of {num_iterations}. This is the story so far. If
+                iteration {i} of {num_iterations}. Below is the story so far. If
                 you have nothing to contribute to the story, remain silent and
                 do not add a new sentence to it.
-                {story.render()}""")
+
+                ###
+                {story.render()}
+                ###
+                """)
 
             # for whatever reason, RITS likes to timeout on these calls, so we need to be a bit more
             # agressive...
@@ -405,8 +430,13 @@ async def main() -> None:
             text=f"""You are {agent["name"]} and you are in a
                   writer's room with {", ".join(other_agent_names)}.
                   Your task is to write a story together on this
-                  topic: {story_prompt} Your position statement is:
-                  {agent["position_statement"]}""")
+                  topic: {story_prompt} Your position statement is
+                  below.
+
+                  ###
+                  {agent["position_statement"]}
+                  ###
+                  """)
         agent["system_prompt"] = prompt
 
     # Print agent information
