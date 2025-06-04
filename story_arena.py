@@ -140,7 +140,7 @@ class Utterance(BaseModel):
 async def run_consensus_phase(agents, num_agent_turns=20) -> list[UserMessage]:
     max_turns = num_agent_turns * len(agents)
     consensus_prompt = dedent(
-        text=f"""You are in the consensus phase of the story-writing process. The way this
+        text=f"""You are in the Consensus phase of the story-writing process. The way this
               phase works is that you will have a conversation with the other writers in
               the writing room about the ideas you brainstormed in the ideation phase. The
               goal is to argue for your ideas on the details of the story (setting,
@@ -256,18 +256,26 @@ class Story:
 
 async def run_writing_phase(agents, num_iterations=20) -> Story:
     writing_prompt = dedent(
-        text=f"""You are in the writing phase of the story-writing process. Your
+        text=f"""You are in the Writing phase of the story-writing process. Your
               job is to work with the other writers in the room to construct a
               story based on your own understanding of the consensus reached
               during the consensus phase. You will work in a round-robin fashion
               with your fellow writers by contributing one sentence to the story
-              at a time. Keep the story coherent, but also ensure it meets your
-              own goals and understanding of what the story is supposed to be
-              about. You will have {num_iterations} turns at writing. Use them
-              well. Remember that a story has three parts: the introduction, the
-              body, and the conclusion. Work together to ensure the story
-              contains these three parts and is coherent. Do not insert yourself
-              or your co-writers into the story.""")
+              at a time. Here are a few guidelines for the writing process:
+
+              - Keep the story coherent, but also ensure it meets your own goals
+              and understanding of what the story is supposed to be about.
+              - You will have {num_iterations} turns at writing. Use them well.
+              - Pay attention to the shape of the story and make sure that
+              what you are writing conforms to the desired shape, given the
+              current iteration you are on.
+              - Do not insert yourself or your co-writers into the story.
+              - Make sure your characters have actual names (not just descriptions).
+              - Use dialogue! Make the characters speak.
+              - Dialogue can come in many forms, including indirect dialogue
+              (e.g. describing what the characters are saying) and direct dialogue
+              (e.g. actually quoting things said by the character).
+              """)
 
     # write!
     story: Story = Story()
