@@ -2,13 +2,13 @@ import argparse
 import asyncio
 import logging
 import os
-from enum import StrEnum
 import random
 from textwrap import dedent
 
 from beeai_framework.adapters.openai.backend.chat import OpenAIChatModel
 from beeai_framework.backend import (
     AnyMessage,
+    AssistantMessage,
     ChatModelParameters,
     SystemMessage,
     UserMessage,
@@ -31,7 +31,7 @@ logging.getLogger(name="httpcore.http11").setLevel(level=logging.WARNING)
 logging.getLogger(name="openai._base_client").setLevel(level=logging.WARNING)
 logging.getLogger(name="asyncio").setLevel(level=logging.WARNING)
 
-TEMPERATURE = 0.3
+TEMPERATURE = 0.8
 LOG_PROMPTS = False
 MODELS = {
     "rits:deepseek-v2-5": {
@@ -126,12 +126,12 @@ async def run_ideation_phase(agent) -> str:
     ideation_prompt = dedent(
         text="""You are in the Ideation phase of the story-writing process.
              During this phase, your task is to brainstorm story ideas including
-             genre, setting, characters, and shape. Ideate specific details
-             for each of these story elements that will serve to support
-             your position statement. Be specific with the details. For example,
-             give your characters names, personalities, and backstories. Do not
-             insert your own name or the names of your co-writers into the
-             story."""
+             genre, setting, characters, shape, plot, and conflict. Ideate
+             specific details for each of these story elements that will serve
+             to support your position statement. Be specific with the details.
+             For example, give your characters names, personalities, and
+             backstories. Do not insert your own name or the names of your
+             co-writers into the story."""
     )
 
     # class Shape(StrEnum):
@@ -175,14 +175,11 @@ async def run_ideation_phase(agent) -> str:
             description="The genre of the story, such as whether it is a tragedy, comedy, satire, romance, etc."
         )
         setting: str = Field(
-            description="The setting of the story. The setting includes specific details of the location or place, season, era, etc."
+            description="The setting of the story. The setting is a specific location or place. It may also involve a specific season or time of year or a specific era or epoch."
         )
         characters: str = Field(
             description="The characters who are involved in the story. Each character has a name, a backstory, personal details, and personality traits. Do not include your own name in the list of characters."
         )
-        # conflict: str = Field(
-        #     description="A description of a type of conflict between one or more of the characters"
-        # )
         # sources:
         #  https://bigthink.com/high-culture/vonnegut-shapes/
         #  https://link.springer.com/content/pdf/10.1140/epjds/s13688-016-0093-1.pdf
@@ -204,6 +201,12 @@ async def run_ideation_phase(agent) -> str:
             """)
         )
         # shape: StoryShape = Field(description="The shape of the story")
+        plot: str = Field(
+            description="The sequence of events that occurs in the story from the beginning to the middle to the end."
+        )
+        conflict: str = Field(
+            description="A description of a type of conflict between one or more of the characters, or a conflict within one single character"
+        )
         other_elements: str = Field(
             description="Other elements or details that are pertinent to the kind of story you want to tell"
         )
@@ -246,6 +249,8 @@ async def run_ideation_phase(agent) -> str:
         Setting: {result.object["setting"]}
         Characters: {result.object["characters"]}
         Shape: {result.object["shape"]}
+        Plot: {result.object["plot"]}
+        Conflict: {result.object["conflict"]}
         Other elements: {result.object["other_elements"]}
         """
     )
@@ -283,8 +288,8 @@ async def run_consensus_phase(
               - You may address the other writers directly by name, but do not speak for them.
               - Do not prefix your messages with your own name or the names of other writers.
               - Do not repeat statements that have already been made.
+              - Do not summarize or consolidate the decisions made in the conversation.
               - If you have nothing to say, say \"I have nothing else to add.\"
-              - Do not summarize the decisions made in the conversation.
               """
     )
     consensus_prompt_yield = dedent(
@@ -328,12 +333,27 @@ async def run_consensus_phase(
                 ]
 
                 log_prompt(components=prompt_components)
-                result = await agent["llm"].create_structure(
-                    schema=Utterance,
-                    messages=prompt_components,
-                    max_retries=3,
-                    abort_signal=AbortSignal.timeout(duration=30),
-                )
+
+                success = False
+                attempt = 0
+                result = None
+                while not success:
+                    try:
+                        result = await agent["llm"].create_structure(
+                                schema=Utterance,
+                                messages=prompt_components,
+                                max_retries=3,
+                                abort_signal=AbortSignal.timeout(duration=30),
+                            )
+                        success = True
+                    except AbortError:
+                        attempt = attempt + 1
+                        console.print(
+                            f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
+                        )
+
+                if result is None:
+                    raise AbortError("Consensus phase failed to complete within the allotted time.")
 
                 message = result.object["message"]
                 conversation.append(UserMessage(f"{agent['name']}: {message}"))
@@ -367,15 +387,30 @@ async def run_consensus_phase(
         )
 
         console.print(f"[cyan][bold]{agent['name']}'s summary[/bold][/]")
-        result = await agent["llm"].create(
-            messages=[
-                SystemMessage(agent["system_prompt"]),
-                SystemMessage(summary_prompt),
-                *conversation,
-            ],
-            max_retries=3,
-            abort_signal=AbortSignal.timeout(duration=30),
-        )
+
+        success = False
+        attempt = 0
+        result = None
+        while not success:
+            try:
+                result = await agent["llm"].create(
+                    messages=[
+                        SystemMessage(agent["system_prompt"]),
+                        SystemMessage(summary_prompt),
+                        *conversation,
+                    ],
+                    max_retries=3,
+                    abort_signal=AbortSignal.timeout(duration=30),
+                )
+                success = True
+            except AbortError:
+                attempt = attempt + 1
+                console.print(
+                    f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
+                )
+
+        if result is None:
+            raise AbortError("Summary failed to complete within the allotted time.")
 
         summary = result.messages[-1].content[-1].text
         console.print(f"[magenta][bold]{agent['name']}[/bold]: {summary}[/]")
@@ -405,14 +440,14 @@ class Story:
         return " ".join(sentence.sentence for sentence in self.story)
 
 
-async def run_writing_phase(agents, num_iterations=20) -> Story:
+async def run_writing_phase(agents, num_iterations=10) -> Story:
     writing_prompt = dedent(
         text=f"""You are in the Writing phase of the story-writing process. Your job is
               to work with the other writers in the room to construct a story based on
-              your own understanding of the consensus reached during the consensus
-              phase. You will work in a round-robin fashion with your fellow writers
-              by contributing one sentence to the story at a time. Here are the rules
-              for the Writing phase:
+              a discussion you had with the other writers. You will work in a round-robin
+              fashion with your fellow writers by contributing one sentence to the story
+              at a time. Here are the rules for the Writing phase:
+
               - Stories have a clear beginning, middle, and end. Make sure you and
               your authors follow this overall structure. Do not begin your story
               in the middle!
@@ -443,7 +478,7 @@ async def run_writing_phase(agents, num_iterations=20) -> Story:
               sentences (e.g. don't keep starting sentences with "As").
               - Write a mixture of short and long sentences.
               - Include sentences that are purely dialogue! Not every sentence needs
-              to include a mix of narration and dialogue.
+              to include narration.
               - Find opportunities for parallel construction, which refers to using
               the same grammatical structure for two or more related elements in a
               sentence.
@@ -459,16 +494,18 @@ async def run_writing_phase(agents, num_iterations=20) -> Story:
     for i in range(0, num_iterations):
         # invoke each agent for a turn at the pen
         for agent in shuffled_agents:
-            consensus_summary = agent["consensus_summary"]
+            summary_prompt = dedent(
+                text=f"""
+                This is my understanding of what this story is about.
+                I will use this material to guide how I write the story.
+
+                ###
+                {agent["consensus_summary"]}
+                ###
+                """)
+
             story_prompt = dedent(
                 text=f"""
-                Below is your understanding of the agreements made during the
-                consensus phase. Use this to guide how you write the story.
-
-                ###
-                {consensus_summary}
-                ###
-
                 It is your turn to add a new sentence to the story. You are on
                 iteration {i} of {num_iterations} ({(i / num_iterations) * 100}%
                 of the way through the story). Below is the story so far. If you
@@ -493,6 +530,7 @@ async def run_writing_phase(agents, num_iterations=20) -> Story:
                         messages=[
                             SystemMessage(agent["system_prompt"]),
                             SystemMessage(writing_prompt),
+                            AssistantMessage(summary_prompt),
                             UserMessage(story_prompt),
                         ],
                         max_retries=5,
@@ -607,9 +645,14 @@ async def main() -> None:
         prompt = dedent(
             text=f"""You are {agent["name"]} and you are in a
                   writer's room with {", ".join(other_agent_names)}.
-                  Your task is to write a story together on this
-                  topic: {story_prompt} Your position statement is
-                  below.
+                  Your task is to write a story together on the following
+                  topic.
+
+                  ###
+                  {story_prompt}
+                  ###
+
+                  Your position statement on this topic is below.
 
                   ###
                   {agent["position_statement"]}
@@ -642,7 +685,8 @@ async def main() -> None:
 
     console.print(f"[bold cyan]{'*' * 72}[/]")
     console.print("[bold cyan]Starting Writing Phase...[/]")
-    story = await run_writing_phase(agents=agents, num_iterations=8)
+    story = await run_writing_phase(agents=agents, num_iterations=6)
+    llm = create_llm(model_name='rits:llama-4-mvk-17b-128e-fp8', api_key=RITS_API_KEY)
     title = await generate_story_title(llm=llm, story=story)
 
     console.print(f"[bold cyan]{'*' * 72}[/]")
