@@ -31,7 +31,7 @@ logging.getLogger(name="httpcore.http11").setLevel(level=logging.WARNING)
 logging.getLogger(name="openai._base_client").setLevel(level=logging.WARNING)
 logging.getLogger(name="asyncio").setLevel(level=logging.WARNING)
 
-TEMPERATURE = 0.8
+TEMPERATURE = 0.2
 LOG_PROMPTS = False
 MODELS = {
     "rits:deepseek-v2-5": {
@@ -124,14 +124,21 @@ def create_llm(model_name: str, api_key="") -> ChatModel | OpenAIChatModel:
 # Ideation phase for a single agent
 async def run_ideation_phase(agent) -> str:
     ideation_prompt = dedent(
-        text="""You are in the Ideation phase of the story-writing process.
-             During this phase, your task is to brainstorm story ideas including
-             genre, setting, characters, shape, plot, and conflict. Ideate
-             specific details for each of these story elements that will serve
-             to support your position statement. Be specific with the details.
-             For example, give your characters names, personalities, and
-             backstories. Do not insert your own name or the names of your
-             co-writers into the story."""
+        text="""
+        You are in the Ideation phase of the story-writing process. During this
+        phase, your task is to brainstorm story ideas including genre, setting,
+        characters, shape, plot, and conflict. Here are the rules to follow for
+        this phase:
+
+        - Ideate specific details for each of the story elements. These details
+          should support your position statement.
+        - Be specific with the details. For example, give your characters names,
+          personalities, and backstories. For example, a character might be
+          audacious, meek, curious, or confrentational. They might not respect
+          authority. They might have had a bad childhood experience with AI. Get
+          creative!
+        - Do not insert your own name or the names of your co-writers into the
+          story."""
     )
 
     # class Shape(StrEnum):
