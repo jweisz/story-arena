@@ -32,6 +32,7 @@ logging.getLogger(name="openai._base_client").setLevel(level=logging.WARNING)
 logging.getLogger(name="asyncio").setLevel(level=logging.WARNING)
 
 TEMPERATURE = 0.2
+TIMEOUT_DURATION = 60
 LOG_PROMPTS = False
 MODELS = {
     "rits:deepseek-v2-5": {
@@ -134,7 +135,7 @@ async def run_ideation_phase(agent) -> str:
           should support your position statement.
         - Be specific with the details. For example, give your characters names,
           personalities, and backstories. For example, a character might be
-          audacious, meek, curious, or confrentational. They might not respect
+          audacious, meek, curious, or confrontational. They might not respect
           authority. They might have had a bad childhood experience with AI. Get
           creative!
         - Do not insert your own name or the names of your co-writers into the
@@ -237,7 +238,7 @@ async def run_ideation_phase(agent) -> str:
                     SystemMessage(ideation_prompt),
                 ],
                 max_retries=3,
-                abort_signal=AbortSignal.timeout(duration=30),
+                abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
             )
             success = True
         except AbortError:
@@ -350,7 +351,7 @@ async def run_consensus_phase(
                                 schema=Utterance,
                                 messages=prompt_components,
                                 max_retries=3,
-                                abort_signal=AbortSignal.timeout(duration=30),
+                                abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
                             )
                         success = True
                     except AbortError:
@@ -407,7 +408,7 @@ async def run_consensus_phase(
                         *conversation,
                     ],
                     max_retries=3,
-                    abort_signal=AbortSignal.timeout(duration=30),
+                    abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
                 )
                 success = True
             except AbortError:
@@ -541,7 +542,7 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
                             UserMessage(story_prompt),
                         ],
                         max_retries=5,
-                        abort_signal=AbortSignal.timeout(duration=20),
+                        abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
                     )
                     success = True
                 except AbortError:
@@ -588,7 +589,7 @@ async def generate_story_title(llm, story: Story) -> str:
             UserMessage(f"This is the story:\n###\n{story.render()}\n###"),
         ],
         max_retries=5,
-        abort_signal=AbortSignal.timeout(duration=20),
+        abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
     )
 
     title = result.object["title"]
@@ -647,7 +648,7 @@ async def main() -> None:
 
     all_agent_names = set([a["name"] for a in agents])
     for agent in agents:
-        other_agent_names = all_agent_names
+        other_agent_names = all_agent_names.copy()
         other_agent_names.discard(agent["name"])
         prompt = dedent(
             text=f"""You are {agent["name"]} and you are in a
@@ -667,6 +668,7 @@ async def main() -> None:
                   """
         )
         agent["system_prompt"] = prompt
+        # console.print(f"[grey35]{agent['name']} → {prompt}[/]")
 
     # Print agent information
     console.print("[bold cyan]Welcome to Story Arena![/]")
