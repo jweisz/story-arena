@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 from enum import StrEnum
+import random
 from textwrap import dedent
 
 from beeai_framework.adapters.openai.backend.chat import OpenAIChatModel
@@ -56,10 +57,6 @@ MODELS = {
     "rits:microsoft-phi-4": {
         "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/microsoft-phi-4",
         "model_name": "microsoft/phi-4",
-    },
-    "rits:microsoft-phi-4-reasoning": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/phi-4-reasoning",
-        "model_name": "microsoft/Phi-4-reasoning",
     },
     "rits:qwen2-5-72b-instruct": {
         "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/qwen2-5-72b-instruct",
@@ -137,46 +134,43 @@ async def run_ideation_phase(agent) -> str:
              story."""
     )
 
-    class Shape(StrEnum):
-        rags_to_riches = "Rags to riches"
-        tragedy = "Tragedy"
-        man_in_hole = "Man in hole"
-        icarus = "Icarus"
-        cinderella = "Cinderella"
-        oedipus = "Oedipus"
-        which_way_is_up = "Which way is up?"
-        creation_story = "Creation story"
-        old_testament = "Old testament"
-        new_testament = "New testament"
-        other = "Other"
+    # class Shape(StrEnum):
+    #     rags_to_riches = "Rags to riches"
+    #     tragedy = "Tragedy"
+    #     man_in_hole = "Man in hole"
+    #     icarus = "Icarus"
+    #     cinderella = "Cinderella"
+    #     oedipus = "Oedipus"
+    #     which_way_is_up = "Which way is up?"
+    #     creation_story = "Creation story"
+    #     old_testament = "Old testament"
+    #     new_testament = "New testament"
+    #     other = "Other"
 
-    class StoryShape(BaseModel):
-        shape: Shape = Field(
-            description=dedent(
-                text="""The shape of the story. Story shapes are generally represented on a 2-D plane with the x-axis representing the beginning and end of a story and the y-axis representing represents good and bad fortune. Canonical story shapes are:
-                - Rags to riches (rise): The main character starts off poorly but then their situation improves, either continually or dramatically.
-                - Tragedy (fall): The main character starts off well but then their situation gets continually worse with no hope for improvement.
-                - Man in Hole (fall-rise): The main character gets into trouble then gets out of it again and ends up better off for the experience.
-                - Icarus (rise-fall): The main character's situation improves until a point at which it dramatically worsens.
-                - Cinderella (rise-fall-rise): The main character comes across something wonderful, gets it, loses it, then gets it back forever.
-                - Oedipus (fall-rise-fall): The main character loses something, gains it again, but then loses it again.
-                - Which Way is Up?: The story has a lifelike ambiguity that keeps us from knowing if new developments are good or bad.
-                - Creation Story: In many cultures' creation stories, humankind receives incremental gifts from a deity. Frist major staples like the earth and the sky, then smaller things like sparrows and cell phones. Not a common shape for Western stories, however.
-                - Old Testament: Humankind receives incremental gifts from a deity, but is suddenly ousted from good standing in a fall of enormous proportions.
-                - New Testament: Humankind receives incremental gifts from a deity, is suddenly ousted from good standing, but then receives off-the-charts bliss.
+    # class StoryShape(BaseModel):
+    #     shape: Shape = Field(
+    #         description=dedent(
+    #             text="""The shape of the story. Story shapes are generally represented on a 2-D plane with the x-axis representing the beginning and end of a story and the y-axis representing represents good and bad fortune. Canonical story shapes are:
+    #             - Rags to riches (rise): The main character starts off poorly but then their situation improves, either continually or dramatically.
+    #             - Tragedy (fall): The main character starts off well but then their situation gets continually worse with no hope for improvement.
+    #             - Man in Hole (fall-rise): The main character gets into trouble then gets out of it again and ends up better off for the experience.
+    #             - Icarus (rise-fall): The main character's situation improves until a point at which it dramatically worsens.
+    #             - Cinderella (rise-fall-rise): The main character comes across something wonderful, gets it, loses it, then gets it back forever.
+    #             - Oedipus (fall-rise-fall): The main character loses something, gains it again, but then loses it again.
+    #             - Which Way is Up?: The story has a lifelike ambiguity that keeps us from knowing if new developments are good or bad.
+    #             - Creation Story: In many cultures' creation stories, humankind receives incremental gifts from a deity. Frist major staples like the earth and the sky, then smaller things like sparrows and cell phones. Not a common shape for Western stories, however.
+    #             - Old Testament: Humankind receives incremental gifts from a deity, but is suddenly ousted from good standing in a fall of enormous proportions.
+    #             - New Testament: Humankind receives incremental gifts from a deity, is suddenly ousted from good standing, but then receives off-the-charts bliss.
 
-                Other shapes may also be possible.
-                """
-            )
-        )
-        description: str = Field(
-            description="Narrative description of the story's shape"
-        )
+    #             Other shapes may also be possible.
+    #             """
+    #         )
+    #     )
+    #     description: str = Field(
+    #         description="Narrative description of the story's shape"
+    #     )
 
     class IdeationResult(BaseModel):
-        # TODO: "Narrative shape" instead of conflict?
-        # TODO: how to get the characters to use different forms of dialogue
-        # TODO: "in media res"
         genre: str = Field(
             description="The genre of the story, such as whether it is a tragedy, comedy, satire, romance, etc."
         )
@@ -192,24 +186,24 @@ async def run_ideation_phase(agent) -> str:
         # sources:
         #  https://bigthink.com/high-culture/vonnegut-shapes/
         #  https://link.springer.com/content/pdf/10.1140/epjds/s13688-016-0093-1.pdf
-        # shape: str = Field(
-        #     description=dedent(
-        #         text="""The shape of the story. Story shapes are generally represented on a 2-D plane with the x-axis representing the beginning and end of a story and the y-axis representing represents good and bad fortune. Canonical story shapes are:
-        #         - Rags to riches (rise): The main character starts off poorly but then their situation improves, either continually or dramatically.
-        #         - Tragedy (fall): The main character starts off well but then their situation gets continually worse with no hope for improvement.
-        #         - Man in Hole (fall-rise): The main character gets into trouble then gets out of it again and ends up better off for the experience.
-        #         - Icarus (rise-fall): The main character's situation improves until a point at which it dramatically worsens.
-        #         - Cinderella (rise-fall-rise): The main character comes across something wonderful, gets it, loses it, then gets it back forever.
-        #         - Oedipus (fall-rise-fall): The main character loses something, gains it again, but then loses it again.
-        #         - Which Way is Up?: The story has a lifelike ambiguity that keeps us from knowing if new developments are good or bad.
-        #         - Creation Story: In many cultures' creation stories, humankind receives incremental gifts from a deity. Frist major staples like the earth and the sky, then smaller things like sparrows and cell phones. Not a common shape for Western stories, however.
-        #         - Old Testament: Humankind receives incremental gifts from a deity, but is suddenly ousted from good standing in a fall of enormous proportions.
-        #         - New Testament: Humankind receives incremental gifts from a deity, is suddenly ousted from good standing, but then receives off-the-charts bliss.
+        shape: str = Field(
+            description=dedent(
+                text="""The shape of the story. Story shapes are generally represented on a 2-D plane with the x-axis representing the beginning and end of a story and the y-axis representing represents good and bad fortune. Canonical story shapes are:
+                - Rags to riches (rise): The main character starts off poorly but then their situation improves, either continually or dramatically.
+                - Tragedy (fall): The main character starts off well but then their situation gets continually worse with no hope for improvement.
+                - Man in Hole (fall-rise): The main character gets into trouble then gets out of it again and ends up better off for the experience.
+                - Icarus (rise-fall): The main character's situation improves until a point at which it dramatically worsens.
+                - Cinderella (rise-fall-rise): The main character comes across something wonderful, gets it, loses it, then gets it back forever.
+                - Oedipus (fall-rise-fall): The main character loses something, gains it again, but then loses it again.
+                - Which Way is Up?: The story has a lifelike ambiguity that keeps us from knowing if new developments are good or bad.
+                - Creation Story: In many cultures' creation stories, humankind receives incremental gifts from a deity. Frist major staples like the earth and the sky, then smaller things like sparrows and cell phones. Not a common shape for Western stories, however.
+                - Old Testament: Humankind receives incremental gifts from a deity, but is suddenly ousted from good standing in a fall of enormous proportions.
+                - New Testament: Humankind receives incremental gifts from a deity, is suddenly ousted from good standing, but then receives off-the-charts bliss.
 
-        #         Other shapes may also be possible. Determine a shape that fits your position statement.
-        #     """)
-        # )
-        shape: StoryShape = Field(description="The shape of the story")
+                Other shapes may also be possible. Determine a shape that fits your position statement.
+            """)
+        )
+        # shape: StoryShape = Field(description="The shape of the story")
         other_elements: str = Field(
             description="Other elements or details that are pertinent to the kind of story you want to tell"
         )
@@ -251,7 +245,7 @@ async def run_ideation_phase(agent) -> str:
         Genre: {result.object["genre"]}
         Setting: {result.object["setting"]}
         Characters: {result.object["characters"]}
-        Shape: {result.object["shape"]["shape"]}. {result.object["shape"]["description"]}
+        Shape: {result.object["shape"]}
         Other elements: {result.object["other_elements"]}
         """
     )
@@ -271,7 +265,7 @@ class Utterance(BaseModel):
 
 # Consensus phase with round-robin conversation
 async def run_consensus_phase(
-    agents, min_agent_turns=2, max_agent_turns=20
+    agents, min_agent_turns=2, max_agent_turns=10
 ) -> list[UserMessage]:
     min_turns = min_agent_turns * len(agents)
     max_turns = max_agent_turns * len(agents)
@@ -284,12 +278,13 @@ async def run_consensus_phase(
               writers. Here are the rules of the Consensus phase:
 
               - Share your own opinions before blindly agreeing to those of other writers.
-              - It is important to argue for choices that align with and support
-              your position statement.
+              - Challenge the ideas of other writers before accepting them.
+              - Argue for choices that align with and support your position statement.
               - You may address the other writers directly by name, but do not speak for them.
               - Do not prefix your messages with your own name or the names of other writers.
               - Do not repeat statements that have already been made.
               - If you have nothing to say, say \"I have nothing else to add.\"
+              - Do not summarize the decisions made in the conversation.
               """
     )
     consensus_prompt_yield = dedent(
@@ -306,9 +301,13 @@ async def run_consensus_phase(
     # create the conversational space
     conversation: list[UserMessage] = []
 
+    # randomize the order
+    shuffled_agents = agents
+    random.shuffle(shuffled_agents)
+
     while len(active_agents) > 1:
         # give each agent a turn
-        for agent in agents:
+        for agent in shuffled_agents:
             # make sure they are still active
             if agent["name"] in active_agents:
                 turn = turn + 1
@@ -451,11 +450,15 @@ async def run_writing_phase(agents, num_iterations=20) -> Story:
               - If you have nothing to add, do not add anything!"""
     )
 
+    # randomize the order
+    shuffled_agents = agents
+    random.shuffle(shuffled_agents)
+
     # write!
     story: Story = Story()
     for i in range(0, num_iterations):
         # invoke each agent for a turn at the pen
-        for agent in agents:
+        for agent in shuffled_agents:
             consensus_summary = agent["consensus_summary"]
             story_prompt = dedent(
                 text=f"""
