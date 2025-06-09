@@ -31,8 +31,8 @@ logging.getLogger(name="httpcore.http11").setLevel(level=logging.WARNING)
 logging.getLogger(name="openai._base_client").setLevel(level=logging.WARNING)
 logging.getLogger(name="asyncio").setLevel(level=logging.WARNING)
 
-TEMPERATURE = 0.2
-TIMEOUT_DURATION = 60
+TEMPERATURE = 0.4
+TIMEOUT_DURATION = 120
 LOG_PROMPTS = False
 MODELS = {
     "rits:deepseek-v2-5": {
@@ -58,6 +58,10 @@ MODELS = {
     "rits:microsoft-phi-4": {
         "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/microsoft-phi-4",
         "model_name": "microsoft/phi-4",
+    },
+    "rits:mistral-small-3-1-24b-2503": {
+        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/mistral-small-3-1-24b-2503",
+        "model_name": "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
     },
     "rits:qwen2-5-72b-instruct": {
         "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/qwen2-5-72b-instruct",
@@ -297,6 +301,8 @@ async def run_consensus_phase(
               - Do not prefix your messages with your own name or the names of other writers.
               - Do not repeat statements that have already been made.
               - Do not summarize or consolidate the decisions made in the conversation.
+              - Speak in short sentences, not in paragraphs. Phrase things the way you would
+                if you were speaking out loud.
               - If you have nothing to say, say \"I have nothing else to add.\"
               """
     )
@@ -582,15 +588,31 @@ async def generate_story_title(llm, story: Story) -> str:
     class Title(BaseModel):
         title: str = Field(description="The title of the story")
 
-    result = await llm.create_structure(
-        schema=Title,
-        messages=[
-            SystemMessage(title_prompt),
-            UserMessage(f"This is the story:\n###\n{story.render()}\n###"),
-        ],
-        max_retries=5,
-        abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
-    )
+    success = False
+    attempt = 0
+    result = None
+    while not success:
+        try:
+            result = await llm.create_structure(
+                schema=Title,
+                messages=[
+                    SystemMessage(title_prompt),
+                    UserMessage(f"This is the story:\n###\n{story.render()}\n###"),
+                ],
+                max_retries=5,
+                abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
+            )
+            success = True
+        except AbortError:
+            attempt = attempt + 1
+            console.print(
+                f"[red bold]→ Title generation timed out, trying again (attempt {attempt})[/]"
+            )
+
+    if result is None:
+        raise AbortError(
+            "Title generation failed to complete within the allotted time."
+        )
 
     title = result.object["title"]
     return title
@@ -694,7 +716,8 @@ async def main() -> None:
 
     console.print(f"[bold cyan]{'*' * 72}[/]")
     console.print("[bold cyan]Starting Writing Phase...[/]")
-    story = await run_writing_phase(agents=agents, num_iterations=6)
+    story = await run_writing_phase(agents=agents, num_iterations=5)
+
     llm = create_llm(model_name='rits:llama-4-mvk-17b-128e-fp8', api_key=RITS_API_KEY)
     title = await generate_story_title(llm=llm, story=story)
 
