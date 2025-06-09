@@ -31,7 +31,7 @@ logging.getLogger(name="httpcore.http11").setLevel(level=logging.WARNING)
 logging.getLogger(name="openai._base_client").setLevel(level=logging.WARNING)
 logging.getLogger(name="asyncio").setLevel(level=logging.WARNING)
 
-TEMPERATURE = 0.4
+TEMPERATURE = 0.2
 TIMEOUT_DURATION = 120
 LOG_PROMPTS = False
 MODELS = {
@@ -456,48 +456,72 @@ class Story:
 
 async def run_writing_phase(agents, num_iterations=10) -> Story:
     writing_prompt = dedent(
-        text=f"""You are in the Writing phase of the story-writing process. Your job is
-              to work with the other writers in the room to construct a story based on
-              a discussion you had with the other writers. You will work in a round-robin
-              fashion with your fellow writers by contributing one sentence to the story
-              at a time. Here are the rules for the Writing phase:
+        text=f"""
+        You are in the Writing phase of the story-writing process. Your job is
+        to work with the other writers in the room to construct a story based on
+        a discussion you had with the other writers. You will work in a
+        round-robin fashion with your fellow writers by contributing one
+        sentence to the story at a time. Here are the rules for the Writing
+        phase:
+        - You will have {num_iterations} turns at writing. Use them well.
+        - When quoting dialogue, use double quotation marks (") instead
+          of single quotation marks (').
+        - Do not repeat past sentences that already exist in the story.
+        - Do not rehash past ideas that already exist in the story.
+        - Write in Martha Wells' style: Employ clear, concise, and brief prose,
+          characterized by 'elegant breathless brevity.' Utilize a single,
+          first-person (or first-construct) viewpoint, starting in media res.
+          Maintain a terse, dispassionate narrator whose thoughts are infused
+          with comically cynical observations and humanizing touches. Build the
+          world primarily through context rather than explicit exposition, using
+          technical terms naturally. Balance action sequences with moments of
+          introspection. Focus on character-driven storytelling, humor, and
+          existential reflections, humanizing AI by exploring themes of
+          autonomy, self-identity, anxiety, and the complexities of human-AI
+          interaction. Maintain a tone that balances wit and poignancy.
+        """)
 
-              - Stories have a clear beginning, middle, and end. Make sure you and
-              your authors follow this overall structure. Do not begin your story
-              in the middle!
-              - Keep the story coherent, but also ensure it meets your own goals and
-              understanding of what the story is supposed to be about.
-              - You will have {num_iterations} turns at writing. Use them well.
-              - Pay attention to the shape of the story and make sure that what you
-              are writing conforms to the desired shape, given the current iteration
-              you are on.
-              - Do not insert yourself or your co-writers into the story.
-              - Make sure your characters have actual names (not just descriptions).
-              - Use dialogue! Make the characters speak.
-              - Dialogue can come in many forms, including indirect, direct, and
-              summarized. Direct dialogue involves directly quoting things a character
-              says. It adds subtext by mapping out the characters' thoughts, emotions,
-              physical setting, and actions without specifically mentioning those
-              attributes. Indirect dialogue is where the narrator paraphrases the
-              dialogue. Summarized dialogue condenses entire exchanges. Both indirect
-              and summarized dialogue compress time, reveal character, and draw
-              attention to direct dialogue.
-              - When writing direct dialogue, use double quotation marks (") instead
-              of single quotation marks (').
-              - Do not repeat past sentences that already exist in the story.
-              - Do not rehash past ideas that already exist in the story.
-              - Do not insert newlines.
-              - Vary the composition of the sentences in the story. Try not to start
-              each sentence with the same words used at the start of previous
-              sentences (e.g. don't keep starting sentences with "As").
-              - Write a mixture of short and long sentences.
-              - Include sentences that are purely dialogue! Not every sentence needs
-              to include narration.
-              - Find opportunities for parallel construction, which refers to using
-              the same grammatical structure for two or more related elements in a
-              sentence.
-              - If you have nothing to add, do not add anything!"""
-    )
+        # text=f"""You are in the Writing phase of the story-writing process. Your job is
+        #       to work with the other writers in the room to construct a story based on
+        #       a discussion you had with the other writers. You will work in a round-robin
+        #       fashion with your fellow writers by contributing one sentence to the story
+        #       at a time. Here are the rules for the Writing phase:
+
+        #       - Stories have a clear beginning, middle, and end. Make sure you and
+        #       your authors follow this overall structure. Do not begin your story
+        #       in the middle!
+        #       - Keep the story coherent, but also ensure it meets your own goals and
+        #       understanding of what the story is supposed to be about.
+        #       - You will have {num_iterations} turns at writing. Use them well.
+        #       - Pay attention to the shape of the story and make sure that what you
+        #       are writing conforms to the desired shape, given the current iteration
+        #       you are on.
+        #       - Do not insert yourself or your co-writers into the story.
+        #       - Make sure your characters have actual names (not just descriptions).
+        #       - Use dialogue! Make the characters speak.
+        #       - Dialogue can come in many forms, including indirect, direct, and
+        #       summarized. Direct dialogue involves directly quoting things a character
+        #       says. It adds subtext by mapping out the characters' thoughts, emotions,
+        #       physical setting, and actions without specifically mentioning those
+        #       attributes. Indirect dialogue is where the narrator paraphrases the
+        #       dialogue. Summarized dialogue condenses entire exchanges. Both indirect
+        #       and summarized dialogue compress time, reveal character, and draw
+        #       attention to direct dialogue.
+        #       - When writing direct dialogue, use double quotation marks (") instead
+        #       of single quotation marks (').
+        #       - Do not repeat past sentences that already exist in the story.
+        #       - Do not rehash past ideas that already exist in the story.
+        #       - Do not insert newlines.
+        #       - Vary the composition of the sentences in the story. Try not to start
+        #       each sentence with the same words used at the start of previous
+        #       sentences (e.g. don't keep starting sentences with "As").
+        #       - Write a mixture of short and long sentences.
+        #       - Include sentences that are purely dialogue! Not every sentence needs
+        #       to include narration.
+        #       - Find opportunities for parallel construction, which refers to using
+        #       the same grammatical structure for two or more related elements in a
+        #       sentence.
+        #       - If you have nothing to add, do not add anything!"""
 
     # randomize the order
     shuffled_agents = agents
@@ -716,7 +740,7 @@ async def main() -> None:
 
     console.print(f"[bold cyan]{'*' * 72}[/]")
     console.print("[bold cyan]Starting Writing Phase...[/]")
-    story = await run_writing_phase(agents=agents, num_iterations=5)
+    story = await run_writing_phase(agents=agents, num_iterations=6)
 
     llm = create_llm(model_name='rits:llama-4-mvk-17b-128e-fp8', api_key=RITS_API_KEY)
     title = await generate_story_title(llm=llm, story=story)
