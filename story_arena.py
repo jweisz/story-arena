@@ -1,11 +1,13 @@
 import argparse
 import asyncio
+import datetime
 import logging
 import os
 import random
 from textwrap import dedent
 
 from beeai_framework.adapters.openai.backend.chat import OpenAIChatModel
+from beeai_framework.adapters.watsonx.backend.chat import WatsonxChatModel
 from beeai_framework.backend import (
     AnyMessage,
     AssistantMessage,
@@ -22,14 +24,6 @@ from rich.console import Console
 
 # Rich console
 console = Console()
-
-# Enable logging
-logging.basicConfig(level=logging.DEBUG)
-logging.getLogger(name="httpx").setLevel(level=logging.WARNING)
-logging.getLogger(name="httpcore.connection").setLevel(level=logging.WARNING)
-logging.getLogger(name="httpcore.http11").setLevel(level=logging.WARNING)
-logging.getLogger(name="openai._base_client").setLevel(level=logging.WARNING)
-logging.getLogger(name="asyncio").setLevel(level=logging.WARNING)
 
 TEMPERATURE = 0.2
 TIMEOUT_DURATION = 120
@@ -66,10 +60,46 @@ MODELS = {
     "rits:qwen2-5-72b-instruct": {
         "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/qwen2-5-72b-instruct",
         "model_name": "Qwen/Qwen2.5-72B-Instruct",
+    },
+    "watsonx:granite-3-3-8b-instruct": {
+        "model_name": "ibm/granite-3-3-8b-instruct",
+    },
+    "watsonx:llama-4-maverick-17b-128e-instruct-fp8": {
+        "model_name": "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
+    },
+    "watsonx:mistral-large": {
+        "model_name": "mistralai/mistral-large"
+    },
+    "watsonx:mistral-small-3-1-24b-instruct-2503": {
+        "model_name": "mistralai/mistral-small-3-1-24b-instruct-2503"
     }
 }
 # DEFAULT_MODEL = 'rits:llama-4-mvk-17b-128e-fp8'
 DEFAULT_MODEL = 'rits:granite-3-3-8b-instruct'
+
+def setup_logging(log_dir = None) -> None:
+    def create_log_directory() -> str:
+        timestamp = datetime.datetime.now().strftime("%m%d%Y-%H%M%S")
+        log_dir = f"runs/run-{timestamp}"
+        os.makedirs(log_dir, exist_ok=True)
+        return log_dir
+
+    if log_dir is None:
+        log_dir = create_log_directory()
+
+    console.print(f"[grey35]Logging to {log_dir}[/]")
+
+    # enable logging
+    logging.basicConfig(
+        filename=os.path.join(log_dir, "console.log"),
+        level=logging.DEBUG,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+    logging.getLogger(name="httpx").setLevel(level=logging.WARNING)
+    logging.getLogger(name="httpcore.connection").setLevel(level=logging.WARNING)
+    logging.getLogger(name="httpcore.http11").setLevel(level=logging.WARNING)
+    logging.getLogger(name="openai._base_client").setLevel(level=logging.WARNING)
+    logging.getLogger(name="asyncio").setLevel(level=logging.WARNING)
 
 def log_prompt(components: list[AnyMessage]):
     if LOG_PROMPTS:
@@ -101,13 +131,15 @@ def parse_model_name_from_position_statement(
         console.print('[red] no # found[/]')
         return (None, position_statement)
 
-
 def create_llm(model_name: str, api_key="") -> ChatModel | OpenAIChatModel:
+    load_dotenv()
+
     if model_name.startswith("ollama:"):
         llm = ChatModel.from_name(
             model_name.split(':')[1], options=ChatModelParameters(temperature=TEMPERATURE)
         )
     elif model_name.startswith("rits:"):
+        api_key = os.getenv('RITS_API_KEY')
         info = MODELS[model_name]
         settings = {
             "extra_headers": {"RITS_API_KEY": api_key},
@@ -118,6 +150,20 @@ def create_llm(model_name: str, api_key="") -> ChatModel | OpenAIChatModel:
             model_id=info['model_name'],
             settings=settings,
             parameters=ChatModelParameters(temperature=TEMPERATURE),
+        )
+    elif model_name.startswith('watsonx'):
+        base_url = os.getenv('WATSONX_BASE_URL')
+        api_key = os.getenv('WATSONX_API_KEY')
+        project_id = os.getenv('WATSONX_PROJECT_ID')
+        info = MODELS[model_name]
+        settings = {
+            "base_url": base_url,
+            "api_key": api_key,
+            "project_id": project_id,
+        }
+        llm = WatsonxChatModel(
+            model_id=info['model_name'],
+            settings=settings
         )
     else:
         raise ValueError(
@@ -643,18 +689,6 @@ async def generate_story_title(llm, story: Story) -> str:
 
 
 async def main() -> None:
-    load_dotenv()
-    RITS_API_KEY = os.getenv("RITS_API_KEY")
-
-    # RITS_API_URL = os.getenv(
-    #     key="RITS_API_URL",
-    #     default="https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com",
-    # )
-    # MODEL_NAME = os.getenv("MODEL_NAME")
-
-    if RITS_API_KEY is None:
-        raise ValueError("RITS_API_KEY must be defined in the .env file.")
-
     parser = argparse.ArgumentParser(description="✏️ Story Arena!")
     parser.add_argument(
         "prompt_files", type=str, nargs="+", help="Paths to agent prompt files"
@@ -665,7 +699,16 @@ async def main() -> None:
         required=True,
         help="Path to file containing the story prompt",
     )
+    parser.add_argument(
+        "--log-dir",
+        type=str,
+        required=False,
+        help="Path to log directory"
+    )
     args = parser.parse_args()
+
+    # Set up logging
+    setup_logging(args.log_dir)
 
     # Read story prompt from file
     with open(args.story_prompt, "r") as file:
@@ -682,7 +725,7 @@ async def main() -> None:
             )
             if model_name is None:
                 model_name = DEFAULT_MODEL
-            llm = create_llm(model_name=model_name, api_key=RITS_API_KEY)
+            llm = create_llm(model_name=model_name)
             agents.append(
                 {
                     "name": name,
@@ -742,7 +785,7 @@ async def main() -> None:
     console.print("[bold cyan]Starting Writing Phase...[/]")
     story = await run_writing_phase(agents=agents, num_iterations=6)
 
-    llm = create_llm(model_name='rits:llama-4-mvk-17b-128e-fp8', api_key=RITS_API_KEY)
+    llm = create_llm(model_name='rits:llama-4-mvk-17b-128e-fp8')
     title = await generate_story_title(llm=llm, story=story)
 
     console.print(f"[bold cyan]{'*' * 72}[/]")
