@@ -67,7 +67,9 @@ MODELS = {
     "watsonx:llama-4-maverick-17b-128e-instruct-fp8": {
         "model_name": "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
     },
-    "watsonx:mistral-large": {"model_name": "mistralai/mistral-large"},
+    "watsonx:mistral-large": {
+        "model_name": "mistralai/mistral-large"
+    },
     "watsonx:mistral-small-3-1-24b-instruct-2503": {
         "model_name": "mistralai/mistral-small-3-1-24b-instruct-2503"
     },
