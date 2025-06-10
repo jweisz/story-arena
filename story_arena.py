@@ -25,9 +25,10 @@ from rich.console import Console
 # Rich console
 console = Console()
 
+# Global constants
 TEMPERATURE = 0.2
 TIMEOUT_DURATION = 120
-LOG_PROMPTS = False
+
 MODELS = {
     "rits:deepseek-v2-5": {
         "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/deepseek-v2-5",
@@ -77,7 +78,7 @@ MODELS = {
 # DEFAULT_MODEL = 'rits:llama-4-mvk-17b-128e-fp8'
 DEFAULT_MODEL = 'rits:granite-3-3-8b-instruct'
 
-def setup_logging(log_dir = None) -> None:
+def setup_logging(log_dir=None) -> None:
     def create_log_directory() -> str:
         timestamp = datetime.datetime.now().strftime("%m%d%Y-%H%M%S")
         log_dir = f"runs/run-{timestamp}"
@@ -89,24 +90,38 @@ def setup_logging(log_dir = None) -> None:
 
     console.print(f"[grey35]Logging to {log_dir}[/]")
 
-    # enable logging
-    logging.basicConfig(
-        filename=os.path.join(log_dir, "console.log"),
-        level=logging.DEBUG,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
-    logging.getLogger(name="httpx").setLevel(level=logging.WARNING)
-    logging.getLogger(name="httpcore.connection").setLevel(level=logging.WARNING)
-    logging.getLogger(name="httpcore.http11").setLevel(level=logging.WARNING)
-    logging.getLogger(name="openai._base_client").setLevel(level=logging.WARNING)
-    logging.getLogger(name="asyncio").setLevel(level=logging.WARNING)
+    # Send logs to a file
+    logger = logging.getLogger(name='story_arena')
+    logger.setLevel(logging.INFO)
+    file_handler = logging.FileHandler(filename=os.path.join(log_dir, "console.log"))
+    file_handler.setLevel(logging.INFO)
+    logger.addHandler(file_handler)
 
-def log_prompt(components: list[AnyMessage]):
-    if LOG_PROMPTS:
-        console.print("[grey35] → Prompt[/]")
-        for c in components:
-            console.print(f"[grey35]{c}[/]")
+    # Send prompt logs to a file
+    prompt_logger = logging.getLogger(name='story_arena_prompts')
+    prompt_logger.setLevel(logging.INFO)
+    prompt_handler = logging.FileHandler(filename=os.path.join(log_dir, "prompts.log"))
+    prompt_handler.setLevel(level=logging.INFO)
+    prompt_logger.addHandler(prompt_handler)
 
+    # Log debugging info from these libraries to a file
+    debug_file_handler = logging.FileHandler(filename=os.path.join(log_dir, "debug.log"))
+    debug_file_handler.setLevel(level=logging.DEBUG)
+    for logger_name in ["httpx", "httpcore.connection", "httpcore.http11", "openai._base_client", "asyncio"]:
+        logging.getLogger(name=logger_name).setLevel(logging.DEBUG)
+        logging.getLogger(name=logger_name).addHandler(debug_file_handler)
+        formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
+        debug_file_handler.setFormatter(formatter)
+
+def log(msg: str) -> None:
+    console.print(msg)
+    logging.getLogger(name='story_arena').info(msg=msg)
+
+def log_prompt(components: list[AnyMessage]) -> None:
+    logger = logging.getLogger(name='story_arena_prompts')
+    logger.info(msg=f"{'*' * 27} → Prompt ← {'*' * 27}")
+    for c in components:
+        logger.info(f"{c}")
 
 def parse_model_name_from_position_statement(
     position_statement: str,
@@ -293,25 +308,27 @@ async def run_ideation_phase(agent) -> str:
             success = True
         except AbortError:
             attempt = attempt + 1
-            console.print(
-                f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
-            )
+            log(f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]")
             # logging.getLogger(name='openai._base_client').setLevel(level=logging.DEBUG)
 
     if result is None:
         raise AbortError("Ideation phase failed to complete within the allotted time.")
 
-    ideation_result = dedent(
-        text=f"""These are your ideas for the story:
-        Genre: {result.object["genre"]}
-        Setting: {result.object["setting"]}
-        Characters: {result.object["characters"]}
-        Shape: {result.object["shape"]}
-        Plot: {result.object["plot"]}
-        Conflict: {result.object["conflict"]}
-        Other elements: {result.object["other_elements"]}
-        """
-    )
+    try:
+        ideation_result = dedent(
+            text=f"""These are your ideas for the story:
+            Genre: {result.object.get("genre", "Unknown")}
+            Setting: {result.object.get("setting", "Unknown")}
+            Characters: {result.object.get("characters", "Unknown")}
+            Shape: {result.object.get("shape", "Unknown")}
+            Plot: {result.object.get("plot", "Unknown")}
+            Conflict: {result.object.get("conflict", "Unknown")}
+            Other elements: {result.object.get("other_elements", "Unknown")}
+            """
+        )
+    except KeyError as e:
+        log(f"[red bold]Unable to deserialize LLM response:\n{repr(result)}")
+        raise e
 
     return ideation_result
 
@@ -377,7 +394,7 @@ async def run_consensus_phase(
             if agent["name"] in active_agents:
                 turn = turn + 1
 
-                console.print(f"[cyan][bold][{turn}] {agent['name']}'s turn[/bold][/]")
+                log(f"[cyan][bold][{turn}] {agent['name']}'s turn[/bold][/]")
 
                 # enforce a minimum number of conversational turns before the writers
                 # are given instructions that they can yield
@@ -415,23 +432,19 @@ async def run_consensus_phase(
                 if result is None:
                     raise AbortError("Consensus phase failed to complete within the allotted time.")
 
-                message = result.object["message"]
+                message = result.object.get("message", "")
                 conversation.append(UserMessage(f"{agent['name']}: {message}"))
-                console.print(
-                    f"[magenta][bold]{agent['name']}[/bold]: [cyan]|[/cyan]{message}[cyan]|[/cyan][/]"
-                )
+                log(f"[magenta][bold]{agent['name']}[/bold]: [cyan]|[/cyan]{message}[cyan]|[/cyan][/]")
 
                 if "i yield" in message.lower():
-                    console.print(f"[green bold]Writer {agent['name']} has yielded[/]")
+                    log(f"[green bold]Writer {agent['name']} has yielded[/]")
                     active_agents.remove(agent["name"])
 
                 if turn > max_turns:
-                    console.print(
-                        f"[green bold]Turn number ({turn}) exceeds turn limit ({max_turns}), ending conversation[/]"
-                    )
+                    log(f"[green bold]Turn number ({turn}) exceeds turn limit ({max_turns}), ending conversation[/]")
                     active_agents.clear()
 
-    console.print("[green bold]All writers have yielded, moving to summarization[/]")
+    log("[green bold]All writers have yielded, moving to summarization[/]")
 
     # each agent summarizes the decisions made in the conversation
     for agent in agents:
@@ -446,7 +459,7 @@ async def run_consensus_phase(
                  process."""
         )
 
-        console.print(f"[cyan][bold]{agent['name']}'s summary[/bold][/]")
+        log(f"[cyan][bold]{agent['name']}'s summary[/bold][/]")
 
         success = False
         attempt = 0
@@ -465,15 +478,13 @@ async def run_consensus_phase(
                 success = True
             except AbortError:
                 attempt = attempt + 1
-                console.print(
-                    f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
-                )
+                log(f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]")
 
         if result is None:
             raise AbortError("Summary failed to complete within the allotted time.")
 
         summary = result.messages[-1].content[-1].text
-        console.print(f"[magenta][bold]{agent['name']}[/bold]: {summary}[/]")
+        log(f"[magenta][bold]{agent['name']}[/bold]: {summary}[/]")
         agent["consensus_summary"] = summary
     return conversation
 
@@ -485,7 +496,6 @@ class Sentence(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.sentence} [{self.author}]"
-
 
 class Story:
     story: list[Sentence]
@@ -512,7 +522,7 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
         - You will have {num_iterations} turns at writing. Use them well.
         - When quoting dialogue, use double quotation marks (") instead
           of single quotation marks (').
-        - Do not repeat past sentences that already exist in the story.
+        - Do not repeat or rephrase past sentences that already exist in the story.
         - Do not rehash past ideas that already exist in the story.
         - Write in Martha Wells' style: Employ clear, concise, and brief prose,
           characterized by 'elegant breathless brevity.' Utilize a single,
@@ -526,6 +536,20 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
           autonomy, self-identity, anxiety, and the complexities of human-AI
           interaction. Maintain a tone that balances wit and poignancy.
         """)
+
+
+
+        # - Write in Ann Leckie's style: Employ precise and clear prose with an
+        #   innovative narrative perspective, preferably from an AI viewpoint.
+        #   Seamlessly integrate past and present experiences within the narrative
+        #   structure. Weave in complex, interwoven subplots exploring themes of
+        #   identity, power, AI ethics, imperialism, and colonialism. Utilize
+        #   gender-neutral pronouns for characters. Develop characters through
+        #   nuanced relationships and moral dilemmas. Maintain a measured pacing
+        #   that allows for deep character and thematic exploration. Incorporate
+        #   immersive world-building with vivid details and symbolism to
+        #   underscore ethical considerations. Ensure dialogue and reflective
+        #   moments contribute to emotional depth and philosophical inquiry.
 
         # text=f"""You are in the Writing phase of the story-writing process. Your job is
         #       to work with the other writers in the room to construct a story based on
@@ -623,25 +647,19 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
                     success = True
                 except AbortError:
                     attempt = attempt + 1
-                    console.print(
-                        f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
-                    )
-                    # logging.getLogger(name='openai._base_client').setLevel(level=logging.DEBUG)
+                    log(f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]")
 
-            # TODO maybe pass on this writer's turn if they time out too much?
             if result is None:
                 raise AbortError(
                     "Writing phase failed to complete within the allotted time."
                 )
 
-            new_sentence = result.object["sentence"]
+            new_sentence = result.object.get("sentence", "")
 
             if new_sentence is None or new_sentence == "":
-                console.print(f"[green bold]Writer {agent['name']} has yielded[/]")
+                log(f"[green bold]Writer {agent['name']} has yielded[/]")
             else:
-                console.print(
-                    f"[green bold][{i}][/green bold] [magenta][bold][{agent['name']}][/bold]: {new_sentence}[/]"
-                )
+                log(f"[green bold][{i}][/green bold] [magenta][bold][{agent['name']}][/bold]: {new_sentence}[/]")
                 story.story.append(
                     Sentence(sentence=new_sentence, author=agent["name"])
                 )
@@ -675,16 +693,14 @@ async def generate_story_title(llm, story: Story) -> str:
             success = True
         except AbortError:
             attempt = attempt + 1
-            console.print(
-                f"[red bold]→ Title generation timed out, trying again (attempt {attempt})[/]"
-            )
+            log(f"[red bold]→ Title generation timed out, trying again (attempt {attempt})[/]")
 
     if result is None:
         raise AbortError(
             "Title generation failed to complete within the allotted time."
         )
 
-    title = result.object["title"]
+    title = result.object.get("title", "")
     return title
 
 
@@ -757,42 +773,39 @@ async def main() -> None:
                   """
         )
         agent["system_prompt"] = prompt
-        # console.print(f"[grey35]{agent['name']} → {prompt}[/]")
 
     # Print agent information
-    console.print("[bold cyan]Welcome to Story Arena![/]")
-    console.print(f"[grey35]Temperature: {TEMPERATURE}[/]")
-    console.print(f"[grey35]Story prompt: {story_prompt}[/]")
+    log("[bold cyan]Welcome to Story Arena![/]")
+    log(f"[grey35]Temperature: {TEMPERATURE}[/]")
+    log(f"[grey35]Story prompt: {story_prompt}[/]")
     for agent in agents:
-        console.print(
-            f"[cyan]Writer {agent['name']} has entered the arena![/] [grey35]→ {agent['model_name']}[/]"
-        )
+        log(f"[cyan]Writer {agent['name']} has entered the arena![/] [grey35]→ {agent['model_name']}[/]")
 
     # Run the workflow
-    console.print(f"[bold cyan]{'*' * 72}[/]")
-    console.print("[bold cyan]Starting Ideation Phase...[/]")
+    log(f"[bold cyan]{'*' * 72}[/]")
+    log("[bold cyan]Starting Ideation Phase...[/]")
     for agent in agents:
-        console.print(f"[cyan][bold]Ideation[/bold]: {agent['name']}'s turn[/]")
+        log(f"[cyan][bold]Ideation[/bold]: {agent['name']}'s turn[/]")
         response = await run_ideation_phase(agent=agent)
-        console.print(f"[magenta][bold]{agent['name']}[/bold]: {response}[/]")
+        log(f"[magenta][bold]{agent['name']}[/bold]: {response}[/]")
         agent["ideation_result"] = response
 
-    console.print(f"[bold cyan]{'*' * 72}[/]")
-    console.print("[bold cyan]Starting Consensus Phase...[/]")
+    log(f"[bold cyan]{'*' * 72}[/]")
+    log("[bold cyan]Starting Consensus Phase...[/]")
     _ = await run_consensus_phase(agents=agents)
 
-    console.print(f"[bold cyan]{'*' * 72}[/]")
-    console.print("[bold cyan]Starting Writing Phase...[/]")
-    story = await run_writing_phase(agents=agents, num_iterations=6)
+    log(f"[bold cyan]{'*' * 72}[/]")
+    log("[bold cyan]Starting Writing Phase...[/]")
+    story = await run_writing_phase(agents=agents, num_iterations=7)
 
     llm = create_llm(model_name='rits:llama-4-mvk-17b-128e-fp8')
     title = await generate_story_title(llm=llm, story=story)
 
-    console.print(f"[bold cyan]{'*' * 72}[/]")
-    console.print(f"[bold cyan]{title}[/]")
-    console.print(f"[cyan]by {', '.join(agent['name'] for agent in agents)}[/]")
-    console.print()
-    console.print(f"[cyan]{story.render()}[/cyan]")
+    log(f"[bold cyan]{'*' * 72}[/]")
+    log(f"[bold cyan]{title}[/]")
+    log(f"[cyan]by {', '.join(agent['name'] for agent in agents)}[/]")
+    log("")
+    log(f"[cyan]{story.render()}[/cyan]")
 
 
 if __name__ == "__main__":
