@@ -26,7 +26,6 @@ from rich.console import Console
 console = Console()
 
 # Global constants
-TEMPERATURE = 0.2
 TIMEOUT_DURATION = 120
 
 MODELS = {
@@ -56,7 +55,7 @@ MODELS = {
     },
     "rits:mistral-small-3-1-24b-2503": {
         "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/mistral-small-3-1-24b-2503",
-        "model_name": "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+        "model_name": "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
     },
     "rits:qwen2-5-72b-instruct": {
         "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/qwen2-5-72b-instruct",
@@ -68,15 +67,14 @@ MODELS = {
     "watsonx:llama-4-maverick-17b-128e-instruct-fp8": {
         "model_name": "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
     },
-    "watsonx:mistral-large": {
-        "model_name": "mistralai/mistral-large"
-    },
+    "watsonx:mistral-large": {"model_name": "mistralai/mistral-large"},
     "watsonx:mistral-small-3-1-24b-instruct-2503": {
         "model_name": "mistralai/mistral-small-3-1-24b-instruct-2503"
-    }
+    },
 }
 # DEFAULT_MODEL = 'rits:llama-4-mvk-17b-128e-fp8'
-DEFAULT_MODEL = 'rits:granite-3-3-8b-instruct'
+DEFAULT_MODEL = "rits:granite-3-3-8b-instruct"
+
 
 def setup_logging(log_dir=None) -> None:
     def create_log_directory() -> str:
@@ -91,37 +89,48 @@ def setup_logging(log_dir=None) -> None:
     console.print(f"[grey35]Logging to {log_dir}[/]")
 
     # Send logs to a file
-    logger = logging.getLogger(name='story_arena')
+    logger = logging.getLogger(name="story_arena")
     logger.setLevel(logging.INFO)
     file_handler = logging.FileHandler(filename=os.path.join(log_dir, "console.log"))
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
 
     # Send prompt logs to a file
-    prompt_logger = logging.getLogger(name='story_arena_prompts')
+    prompt_logger = logging.getLogger(name="story_arena_prompts")
     prompt_logger.setLevel(logging.INFO)
     prompt_handler = logging.FileHandler(filename=os.path.join(log_dir, "prompts.log"))
     prompt_handler.setLevel(level=logging.INFO)
     prompt_logger.addHandler(prompt_handler)
 
     # Log debugging info from these libraries to a file
-    debug_file_handler = logging.FileHandler(filename=os.path.join(log_dir, "debug.log"))
+    debug_file_handler = logging.FileHandler(
+        filename=os.path.join(log_dir, "debug.log")
+    )
     debug_file_handler.setLevel(level=logging.DEBUG)
-    for logger_name in ["httpx", "httpcore.connection", "httpcore.http11", "openai._base_client", "asyncio"]:
+    for logger_name in [
+        "httpx",
+        "httpcore.connection",
+        "httpcore.http11",
+        "openai._base_client",
+        "asyncio",
+    ]:
         logging.getLogger(name=logger_name).setLevel(logging.DEBUG)
         logging.getLogger(name=logger_name).addHandler(debug_file_handler)
-        formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
+        formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
         debug_file_handler.setFormatter(formatter)
+
 
 def log(msg: str) -> None:
     console.print(msg)
-    logging.getLogger(name='story_arena').info(msg=msg)
+    logging.getLogger(name="story_arena").info(msg=msg)
+
 
 def log_prompt(components: list[AnyMessage]) -> None:
-    logger = logging.getLogger(name='story_arena_prompts')
+    logger = logging.getLogger(name="story_arena_prompts")
     logger.info(msg=f"{'*' * 27} → Prompt ← {'*' * 27}")
     for c in components:
         logger.info(f"{c}")
+
 
 def parse_model_name_from_position_statement(
     position_statement: str,
@@ -143,18 +152,22 @@ def parse_model_name_from_position_statement(
         else:
             return (None, rest)
     else:
-        console.print('[red] no # found[/]')
+        console.print("[red] no # found[/]")
         return (None, position_statement)
 
-def create_llm(model_name: str, api_key="") -> ChatModel | OpenAIChatModel:
+
+def create_llm(
+    model_name: str, temperature: float, api_key=""
+) -> ChatModel | OpenAIChatModel:
     load_dotenv()
 
     if model_name.startswith("ollama:"):
         llm = ChatModel.from_name(
-            model_name.split(':')[1], options=ChatModelParameters(temperature=TEMPERATURE)
+            model_name.split(":")[1],
+            options=ChatModelParameters(temperature=temperature),
         )
     elif model_name.startswith("rits:"):
-        api_key = os.getenv('RITS_API_KEY')
+        api_key = os.getenv("RITS_API_KEY")
         info = MODELS[model_name]
         settings = {
             "extra_headers": {"RITS_API_KEY": api_key},
@@ -162,24 +175,21 @@ def create_llm(model_name: str, api_key="") -> ChatModel | OpenAIChatModel:
             "base_url": info["base_url"] + "/v1",
         }
         llm = OpenAIChatModel(
-            model_id=info['model_name'],
+            model_id=info["model_name"],
             settings=settings,
-            parameters=ChatModelParameters(temperature=TEMPERATURE),
+            parameters=ChatModelParameters(temperature=temperature),
         )
-    elif model_name.startswith('watsonx'):
-        base_url = os.getenv('WATSONX_BASE_URL')
-        api_key = os.getenv('WATSONX_API_KEY')
-        project_id = os.getenv('WATSONX_PROJECT_ID')
+    elif model_name.startswith("watsonx"):
+        base_url = os.getenv("WATSONX_BASE_URL")
+        api_key = os.getenv("WATSONX_API_KEY")
+        project_id = os.getenv("WATSONX_PROJECT_ID")
         info = MODELS[model_name]
         settings = {
             "base_url": base_url,
             "api_key": api_key,
             "project_id": project_id,
         }
-        llm = WatsonxChatModel(
-            model_id=info['model_name'],
-            settings=settings
-        )
+        llm = WatsonxChatModel(model_id=info["model_name"], settings=settings)
     else:
         raise ValueError(
             "Invalid MODEL_NAME. It should start with 'ollama:' or 'openai:'"
@@ -271,7 +281,8 @@ async def run_ideation_phase(agent) -> str:
                 - New Testament: Humankind receives incremental gifts from a deity, is suddenly ousted from good standing, but then receives off-the-charts bliss.
 
                 Other shapes may also be possible. Determine a shape that fits your position statement.
-            """)
+            """
+            )
         )
         # shape: StoryShape = Field(description="The shape of the story")
         plot: str = Field(
@@ -308,7 +319,9 @@ async def run_ideation_phase(agent) -> str:
             success = True
         except AbortError:
             attempt = attempt + 1
-            log(f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]")
+            log(
+                f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
+            )
             # logging.getLogger(name='openai._base_client').setLevel(level=logging.DEBUG)
 
     if result is None:
@@ -417,11 +430,11 @@ async def run_consensus_phase(
                 while not success:
                     try:
                         result = await agent["llm"].create_structure(
-                                schema=Utterance,
-                                messages=prompt_components,
-                                max_retries=3,
-                                abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
-                            )
+                            schema=Utterance,
+                            messages=prompt_components,
+                            max_retries=3,
+                            abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
+                        )
                         success = True
                     except AbortError:
                         attempt = attempt + 1
@@ -430,18 +443,24 @@ async def run_consensus_phase(
                         )
 
                 if result is None:
-                    raise AbortError("Consensus phase failed to complete within the allotted time.")
+                    raise AbortError(
+                        "Consensus phase failed to complete within the allotted time."
+                    )
 
                 message = result.object.get("message", "")
                 conversation.append(UserMessage(f"{agent['name']}: {message}"))
-                log(f"[magenta][bold]{agent['name']}[/bold]: [cyan]|[/cyan]{message}[cyan]|[/cyan][/]")
+                log(
+                    f"[magenta][bold]{agent['name']}[/bold]: [cyan]|[/cyan]{message}[cyan]|[/cyan][/]"
+                )
 
                 if "i yield" in message.lower():
                     log(f"[green bold]Writer {agent['name']} has yielded[/]")
                     active_agents.remove(agent["name"])
 
                 if turn > max_turns:
-                    log(f"[green bold]Turn number ({turn}) exceeds turn limit ({max_turns}), ending conversation[/]")
+                    log(
+                        f"[green bold]Turn number ({turn}) exceeds turn limit ({max_turns}), ending conversation[/]"
+                    )
                     active_agents.clear()
 
     log("[green bold]All writers have yielded, moving to summarization[/]")
@@ -478,7 +497,9 @@ async def run_consensus_phase(
                 success = True
             except AbortError:
                 attempt = attempt + 1
-                log(f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]")
+                log(
+                    f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
+                )
 
         if result is None:
             raise AbortError("Summary failed to complete within the allotted time.")
@@ -496,6 +517,7 @@ class Sentence(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.sentence} [{self.author}]"
+
 
 class Story:
     story: list[Sentence]
@@ -535,63 +557,65 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
           existential reflections, humanizing AI by exploring themes of
           autonomy, self-identity, anxiety, and the complexities of human-AI
           interaction. Maintain a tone that balances wit and poignancy.
-        """)
+        - Keep a consistent perspective and tell the story with a consistent
+          narrator.
+        - DO NOT REPEAT SENTENCES THAT ALREADY EXIST!
+        """
+    )
 
+    # - Write in Ann Leckie's style: Employ precise and clear prose with an
+    #   innovative narrative perspective, preferably from an AI viewpoint.
+    #   Seamlessly integrate past and present experiences within the narrative
+    #   structure. Weave in complex, interwoven subplots exploring themes of
+    #   identity, power, AI ethics, imperialism, and colonialism. Utilize
+    #   gender-neutral pronouns for characters. Develop characters through
+    #   nuanced relationships and moral dilemmas. Maintain a measured pacing
+    #   that allows for deep character and thematic exploration. Incorporate
+    #   immersive world-building with vivid details and symbolism to
+    #   underscore ethical considerations. Ensure dialogue and reflective
+    #   moments contribute to emotional depth and philosophical inquiry.
 
+    # text=f"""You are in the Writing phase of the story-writing process. Your job is
+    #       to work with the other writers in the room to construct a story based on
+    #       a discussion you had with the other writers. You will work in a round-robin
+    #       fashion with your fellow writers by contributing one sentence to the story
+    #       at a time. Here are the rules for the Writing phase:
 
-        # - Write in Ann Leckie's style: Employ precise and clear prose with an
-        #   innovative narrative perspective, preferably from an AI viewpoint.
-        #   Seamlessly integrate past and present experiences within the narrative
-        #   structure. Weave in complex, interwoven subplots exploring themes of
-        #   identity, power, AI ethics, imperialism, and colonialism. Utilize
-        #   gender-neutral pronouns for characters. Develop characters through
-        #   nuanced relationships and moral dilemmas. Maintain a measured pacing
-        #   that allows for deep character and thematic exploration. Incorporate
-        #   immersive world-building with vivid details and symbolism to
-        #   underscore ethical considerations. Ensure dialogue and reflective
-        #   moments contribute to emotional depth and philosophical inquiry.
-
-        # text=f"""You are in the Writing phase of the story-writing process. Your job is
-        #       to work with the other writers in the room to construct a story based on
-        #       a discussion you had with the other writers. You will work in a round-robin
-        #       fashion with your fellow writers by contributing one sentence to the story
-        #       at a time. Here are the rules for the Writing phase:
-
-        #       - Stories have a clear beginning, middle, and end. Make sure you and
-        #       your authors follow this overall structure. Do not begin your story
-        #       in the middle!
-        #       - Keep the story coherent, but also ensure it meets your own goals and
-        #       understanding of what the story is supposed to be about.
-        #       - You will have {num_iterations} turns at writing. Use them well.
-        #       - Pay attention to the shape of the story and make sure that what you
-        #       are writing conforms to the desired shape, given the current iteration
-        #       you are on.
-        #       - Do not insert yourself or your co-writers into the story.
-        #       - Make sure your characters have actual names (not just descriptions).
-        #       - Use dialogue! Make the characters speak.
-        #       - Dialogue can come in many forms, including indirect, direct, and
-        #       summarized. Direct dialogue involves directly quoting things a character
-        #       says. It adds subtext by mapping out the characters' thoughts, emotions,
-        #       physical setting, and actions without specifically mentioning those
-        #       attributes. Indirect dialogue is where the narrator paraphrases the
-        #       dialogue. Summarized dialogue condenses entire exchanges. Both indirect
-        #       and summarized dialogue compress time, reveal character, and draw
-        #       attention to direct dialogue.
-        #       - When writing direct dialogue, use double quotation marks (") instead
-        #       of single quotation marks (').
-        #       - Do not repeat past sentences that already exist in the story.
-        #       - Do not rehash past ideas that already exist in the story.
-        #       - Do not insert newlines.
-        #       - Vary the composition of the sentences in the story. Try not to start
-        #       each sentence with the same words used at the start of previous
-        #       sentences (e.g. don't keep starting sentences with "As").
-        #       - Write a mixture of short and long sentences.
-        #       - Include sentences that are purely dialogue! Not every sentence needs
-        #       to include narration.
-        #       - Find opportunities for parallel construction, which refers to using
-        #       the same grammatical structure for two or more related elements in a
-        #       sentence.
-        #       - If you have nothing to add, do not add anything!"""
+    #       - Stories have a clear beginning, middle, and end. Make sure you and
+    #       your authors follow this overall structure. Do not begin your story
+    #       in the middle!
+    #       - Keep the story coherent, but also ensure it meets your own goals and
+    #       understanding of what the story is supposed to be about.
+    #       - You will have {num_iterations} turns at writing. Use them well.
+    #       - Pay attention to the shape of the story and make sure that what you
+    #       are writing conforms to the desired shape, given the current iteration
+    #       you are on.
+    #       - Do not insert yourself or your co-writers into the story.
+    #       - Make sure your characters have actual names (not just descriptions).
+    #       - Use dialogue! Make the characters speak.
+    #       - Dialogue can come in many forms, including indirect, direct, and
+    #       summarized. Direct dialogue involves directly quoting things a character
+    #       says. It adds subtext by mapping out the characters' thoughts, emotions,
+    #       physical setting, and actions without specifically mentioning those
+    #       attributes. Indirect dialogue is where the narrator paraphrases the
+    #       dialogue. Summarized dialogue condenses entire exchanges. Both indirect
+    #       and summarized dialogue compress time, reveal character, and draw
+    #       attention to direct dialogue.
+    #       - When writing direct dialogue, use double quotation marks (") instead
+    #       of single quotation marks (').
+    #       - Do not repeat past sentences that already exist in the story.
+    #       - Do not rehash past ideas that already exist in the story.
+    #       - Do not insert newlines.
+    #       - Vary the composition of the sentences in the story. Try not to start
+    #       each sentence with the same words used at the start of previous
+    #       sentences (e.g. don't keep starting sentences with "As").
+    #       - Write a mixture of short and long sentences.
+    #       - Include sentences that are purely dialogue! Not every sentence needs
+    #       to include narration.
+    #       - Find opportunities for parallel construction, which refers to using
+    #       the same grammatical structure for two or more related elements in a
+    #       sentence.
+    #       - If you have nothing to add, do not add anything!"""
 
     # randomize the order
     shuffled_agents = agents
@@ -610,7 +634,8 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
                 ###
                 {agent["consensus_summary"]}
                 ###
-                """)
+                """
+            )
 
             story_prompt = dedent(
                 text=f"""
@@ -647,7 +672,9 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
                     success = True
                 except AbortError:
                     attempt = attempt + 1
-                    log(f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]")
+                    log(
+                        f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
+                    )
 
             if result is None:
                 raise AbortError(
@@ -659,10 +686,24 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
             if new_sentence is None or new_sentence == "":
                 log(f"[green bold]Writer {agent['name']} has yielded[/]")
             else:
-                log(f"[green bold][{i}][/green bold] [magenta][bold][{agent['name']}][/bold]: {new_sentence}[/]")
-                story.story.append(
-                    Sentence(sentence=new_sentence, author=agent["name"])
-                )
+                # check this against all the previous sentences
+                # if we find an exact match, the author loses their turn
+                is_new_sentence = True
+                for s in story.story:
+                    if s.sentence.lower() == result.object.get("sentence", "").lower():
+                        log(
+                            f"[red bold]→ Writer {agent['name']} generated a pre-existing sentence, ignoring[/]"
+                        )
+                        is_new_sentence = False
+                        break
+
+                if is_new_sentence:
+                    log(
+                        f"[green bold][{i}][/green bold] [magenta][bold][{agent['name']}][/bold]: {new_sentence}[/]"
+                    )
+                    story.story.append(
+                        Sentence(sentence=new_sentence, author=agent["name"])
+                    )
     return story
 
 
@@ -693,7 +734,9 @@ async def generate_story_title(llm, story: Story) -> str:
             success = True
         except AbortError:
             attempt = attempt + 1
-            log(f"[red bold]→ Title generation timed out, trying again (attempt {attempt})[/]")
+            log(
+                f"[red bold]→ Title generation timed out, trying again (attempt {attempt})[/]"
+            )
 
     if result is None:
         raise AbortError(
@@ -716,15 +759,18 @@ async def main() -> None:
         help="Path to file containing the story prompt",
     )
     parser.add_argument(
-        "--log-dir",
-        type=str,
-        required=False,
-        help="Path to log directory"
+        "--log-dir", type=str, required=False, help="Path to log directory"
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.2,
+        help="Temperature for the LLM (default: 0.2)",
     )
     args = parser.parse_args()
 
     # Set up logging
-    setup_logging(args.log_dir)
+    setup_logging(log_dir=args.log_dir)
 
     # Read story prompt from file
     with open(args.story_prompt, "r") as file:
@@ -741,7 +787,7 @@ async def main() -> None:
             )
             if model_name is None:
                 model_name = DEFAULT_MODEL
-            llm = create_llm(model_name=model_name)
+            llm = create_llm(model_name=model_name, temperature=args.temperature)
             agents.append(
                 {
                     "name": name,
@@ -776,10 +822,12 @@ async def main() -> None:
 
     # Print agent information
     log("[bold cyan]Welcome to Story Arena![/]")
-    log(f"[grey35]Temperature: {TEMPERATURE}[/]")
+    log(f"[grey35]Temperature: {args.temperature}[/]")
     log(f"[grey35]Story prompt: {story_prompt}[/]")
     for agent in agents:
-        log(f"[cyan]Writer {agent['name']} has entered the arena![/] [grey35]→ {agent['model_name']}[/]")
+        log(
+            f"[cyan]Writer {agent['name']} has entered the arena![/] [grey35]→ {agent['model_name']}[/]"
+        )
 
     # Run the workflow
     log(f"[bold cyan]{'*' * 72}[/]")
@@ -798,7 +846,9 @@ async def main() -> None:
     log("[bold cyan]Starting Writing Phase...[/]")
     story = await run_writing_phase(agents=agents, num_iterations=7)
 
-    llm = create_llm(model_name='rits:llama-4-mvk-17b-128e-fp8')
+    llm = create_llm(
+        model_name="rits:llama-4-mvk-17b-128e-fp8", temperature=args.temperature
+    )
     title = await generate_story_title(llm=llm, story=story)
 
     log(f"[bold cyan]{'*' * 72}[/]")
