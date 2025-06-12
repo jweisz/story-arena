@@ -1,0 +1,20 @@
+# ollama:granite3.3:latest
+I like to make software. I care a lot about how it works, and I try to make it better.
+I don't believe, as some people do, in "beautiful code." I believe in writing code that gets
+the job done. I'll use any framework that helps me do this. However, what I care
+about is the software that I make, not the framework or tool that helps me make it.
+In most projects, my role is in the early stages, where we are identifying opportunities
+and putting prototypes into the "white space" where those opportunities could be. I like to
+work with a team, where we all talk about our ideas, and then some of us go and create a
+first draft version for discussion. It's like "improv." Once I create or contribute an idea,
+it's fair-game for anyone else to comment, criticize, modify, improve... It's not "my idea,"
+it's "our idea." I take the same approach to other people's code, including their prototypes.
+Later on, when the project needs to comply with a particular software library or dev
+methodology, I get bored. When it gets "agile." That's when I look for a new project to
+work on. I guess I am addicted to "the new."
+As for future AI supports for software projects, I worry that my preferred role might get
+wiped out by the AI. If you can use vibe-coding to turn your idea into functioning code,
+then where is my value-add? And where is the joy in making something? If you can use AI
+to validate an idea or... or... Or if you can use AI to simulate users to do instant
+decisions about "good ideas" and "bad ideas," then... Then I think I will be replaced
+by... by... an algorithm. I hate my life.
