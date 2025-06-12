@@ -74,9 +74,6 @@ MODELS = {
         "model_name": "mistralai/mistral-small-3-1-24b-instruct-2503"
     },
 }
-# DEFAULT_MODEL = 'rits:llama-4-mvk-17b-128e-fp8'
-DEFAULT_MODEL = "rits:granite-3-3-8b-instruct"
-
 
 def setup_logging(log_dir=None) -> None:
     def create_log_directory() -> str:
@@ -149,10 +146,7 @@ def parse_model_name_from_position_statement(
     if lines[0].startswith("#"):
         model = lines[0].split("#")[1].strip()
         rest = "\n".join(lines[1:])
-        if model in MODELS.keys():
-            return (model, rest)
-        else:
-            return (None, rest)
+        return (model, rest)
     else:
         console.print("[red] no # found[/]")
         return (None, position_statement)
@@ -165,8 +159,10 @@ def create_llm(
 
     if model_name.startswith("ollama:"):
         llm = ChatModel.from_name(
-            model_name.split(":")[1],
-            options=ChatModelParameters(temperature=temperature),
+            model_name,
+            options={
+                'temperature': temperature
+            },
         )
     elif model_name.startswith("rits:"):
         api_key = os.getenv("RITS_API_KEY")
@@ -534,7 +530,7 @@ class Story:
         return " ".join(sentence.sentence for sentence in self.story)
 
 
-async def run_writing_phase(agents, num_iterations=10) -> Story:
+async def run_writing_phase(agents, style_instructions: str, num_iterations: int=10) -> Story:
     writing_prompt = dedent(
         text=f"""
         You are in the Writing phase of the story-writing process. Your job is
@@ -548,34 +544,14 @@ async def run_writing_phase(agents, num_iterations=10) -> Story:
           of single quotation marks (').
         - Do not repeat or rephrase past sentences that already exist in the story.
         - Do not rehash past ideas that already exist in the story.
-        - Write in Martha Wells' style: Employ clear, concise, and brief prose,
-          characterized by 'elegant breathless brevity.' Utilize a single,
-          first-person (or first-construct) viewpoint, starting in media res.
-          Maintain a terse, dispassionate narrator whose thoughts are infused
-          with comically cynical observations and humanizing touches. Build the
-          world primarily through context rather than explicit exposition, using
-          technical terms naturally. Balance action sequences with moments of
-          introspection. Focus on character-driven storytelling, humor, and
-          existential reflections, humanizing AI by exploring themes of
-          autonomy, self-identity, anxiety, and the complexities of human-AI
-          interaction. Maintain a tone that balances wit and poignancy.
         - Keep a consistent perspective and tell the story with a consistent
           narrator.
         - DO NOT REPEAT SENTENCES THAT ALREADY EXIST!
         """
     )
 
-    # - Write in Ann Leckie's style: Employ precise and clear prose with an
-    #   innovative narrative perspective, preferably from an AI viewpoint.
-    #   Seamlessly integrate past and present experiences within the narrative
-    #   structure. Weave in complex, interwoven subplots exploring themes of
-    #   identity, power, AI ethics, imperialism, and colonialism. Utilize
-    #   gender-neutral pronouns for characters. Develop characters through
-    #   nuanced relationships and moral dilemmas. Maintain a measured pacing
-    #   that allows for deep character and thematic exploration. Incorporate
-    #   immersive world-building with vivid details and symbolism to
-    #   underscore ethical considerations. Ensure dialogue and reflective
-    #   moments contribute to emotional depth and philosophical inquiry.
+    if style_instructions is not None:
+        writing_prompt = writing_prompt + f"""- {style_instructions}"""
 
     # text=f"""You are in the Writing phase of the story-writing process. Your job is
     #       to work with the other writers in the room to construct a story based on
@@ -761,6 +737,12 @@ async def main() -> None:
         help="Path to file containing the story prompt",
     )
     parser.add_argument(
+        "--style",
+        type=str,
+        required=False,
+        help="Path to file containing style instructions for the Writing phase",
+    )
+    parser.add_argument(
         "--log-dir", type=str, required=False, help="Path to log directory"
     )
     parser.add_argument(
@@ -778,6 +760,11 @@ async def main() -> None:
     with open(args.story_prompt, "r") as file:
         story_prompt = file.read().strip()
 
+    # Read style instructions
+    if args.style is not None:
+        with open(args.style, "r") as file:
+            style_instructions = file.read().strip()
+
     # Read prompt files and create agents
     agents = []
     for file_path in args.prompt_files:
@@ -787,8 +774,6 @@ async def main() -> None:
             (model_name, position_statement) = parse_model_name_from_position_statement(
                 position_statement=position_statement
             )
-            if model_name is None:
-                model_name = DEFAULT_MODEL
             llm = create_llm(model_name=model_name, temperature=args.temperature)
             agents.append(
                 {
@@ -846,11 +831,10 @@ async def main() -> None:
 
     log(f"[bold cyan]{'*' * 72}[/]")
     log("[bold cyan]Starting Writing Phase...[/]")
-    story = await run_writing_phase(agents=agents, num_iterations=7)
+    story = await run_writing_phase(agents=agents, style_instructions=style_instructions, num_iterations=7)
 
-    llm = create_llm(
-        model_name="rits:llama-4-mvk-17b-128e-fp8", temperature=args.temperature
-    )
+    # use the first agent's llm to pick the title
+    llm = agents[0]['llm']
     title = await generate_story_title(llm=llm, story=story)
 
     log(f"[bold cyan]{'*' * 72}[/]")

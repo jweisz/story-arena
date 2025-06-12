@@ -8,11 +8,14 @@
             "request": "launch",
             "program": "${workspaceFolder}/story_arena.py",
             "args": [
-                "${workspaceFolder}/J.txt",
-                "${workspaceFolder}/K.txt",
-                "${workspaceFolder}/M.txt",
+                "${workspaceFolder}/writers/JW.txt",
+                "${workspaceFolder}/writers/KV2.txt",
+                "${workspaceFolder}/writers/MM2.txt",
+                "${workspaceFolder}/writers/AI.txt",
                 "--story-prompt",
-                "${workspaceFolder}/story_prompt.txt"
+                "${workspaceFolder}/prompts/future_swe_complex_v4.txt",
+                "--style",
+                "${workspaceFolder}/styles/martha_wells.txt"
             ]
         }
     ]
