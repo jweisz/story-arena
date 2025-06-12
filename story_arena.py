@@ -67,13 +67,12 @@ MODELS = {
     "watsonx:llama-4-maverick-17b-128e-instruct-fp8": {
         "model_name": "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
     },
-    "watsonx:mistral-large": {
-        "model_name": "mistralai/mistral-large"
-    },
+    "watsonx:mistral-large": {"model_name": "mistralai/mistral-large"},
     "watsonx:mistral-small-3-1-24b-instruct-2503": {
         "model_name": "mistralai/mistral-small-3-1-24b-instruct-2503"
     },
 }
+
 
 def setup_logging(log_dir=None) -> None:
     def create_log_directory() -> str:
@@ -160,9 +159,7 @@ def create_llm(
     if model_name.startswith("ollama:"):
         llm = ChatModel.from_name(
             model_name,
-            options={
-                'temperature': temperature
-            },
+            options={"temperature": temperature},
         )
     elif model_name.startswith("rits:"):
         api_key = os.getenv("RITS_API_KEY")
@@ -190,7 +187,7 @@ def create_llm(
         llm = WatsonxChatModel(model_id=info["model_name"], settings=settings)
     else:
         raise ValueError(
-            "Invalid MODEL_NAME. It should start with 'ollama:' or 'openai:'"
+            "Invalid model name. It should start with 'ollama:', 'openai:', or 'rits:'."
         )
     return llm
 
@@ -530,7 +527,9 @@ class Story:
         return " ".join(sentence.sentence for sentence in self.story)
 
 
-async def run_writing_phase(agents, style_instructions: str, num_iterations: int=10) -> Story:
+async def run_writing_phase(
+    agents, style_instructions: str = "", num_iterations: int = 10
+) -> Story:
     writing_prompt = dedent(
         text=f"""
         You are in the Writing phase of the story-writing process. Your job is
@@ -764,6 +763,8 @@ async def main() -> None:
     if args.style is not None:
         with open(args.style, "r") as file:
             style_instructions = file.read().strip()
+    else:
+        style_instructions = ""
 
     # Read prompt files and create agents
     agents = []
@@ -774,6 +775,12 @@ async def main() -> None:
             (model_name, position_statement) = parse_model_name_from_position_statement(
                 position_statement=position_statement
             )
+
+            if model_name is None:
+                raise ValueError(
+                    f"Unable to parse model name from: {position_statement}"
+                )
+
             llm = create_llm(model_name=model_name, temperature=args.temperature)
             agents.append(
                 {
@@ -831,10 +838,12 @@ async def main() -> None:
 
     log(f"[bold cyan]{'*' * 72}[/]")
     log("[bold cyan]Starting Writing Phase...[/]")
-    story = await run_writing_phase(agents=agents, style_instructions=style_instructions, num_iterations=7)
+    story = await run_writing_phase(
+        agents=agents, style_instructions=style_instructions, num_iterations=7
+    )
 
     # use the first agent's llm to pick the title
-    llm = agents[0]['llm']
+    llm = agents[0]["llm"]
     title = await generate_story_title(llm=llm, story=story)
 
     log(f"[bold cyan]{'*' * 72}[/]")
