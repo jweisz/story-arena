@@ -1,0 +1,46 @@
+# Model aliases for Story Arena.
+#
+# Use an alias anywhere a model is expected: in the first line of a writer
+# file (`# claude`), or with `--model` / `--model-override`. You can also skip
+# aliases and pass any LiteLLM model string directly, e.g.
+# `--model anthropic/claude-opus-5-5`.
+#
+# Keys per alias:
+#   model        (required) LiteLLM model string: "<provider>/<model>"
+#   api_base     (optional) endpoint URL, for local or self-hosted servers
+#   api_key_env  (optional) name of the env var that holds the API key
+#   temperature  (optional) overrides --temperature for this model
+#   any other key is passed straight through to litellm.acompletion()
+#
+# API keys never go in this file. Put them in .env (see .env.sample).
+# Providers: https://docs.litellm.ai/docs/providers
+
+# Ollama (https://ollama.com): `ollama pull granite4.2:3b`
+[models.local]
+model = "ollama_chat/granite4.2:3b"
+api_base = "http://localhost:11434"
+# granite4.2 is a thinking model; turning thinking off makes it about 10x faster
+reasoning_effort = "none"
+
+# LM Studio (https://lmstudio.ai): start the local server, then set `model`
+# to the identifier LM Studio shows for the model you have loaded
+[models.lmstudio]
+model = "lm_studio/qwen/qwen3-8b"
+api_base = "http://localhost:1234/v1"
+
+# Anthropic: needs ANTHROPIC_API_KEY
+[models.claude]
+model = "anthropic/claude-sonnet-5-5"
+
+[models.claude-opus]
+model = "anthropic/claude-opus-5-5"
+
+[models.claude-haiku]
+model = "anthropic/claude-haiku-5-5"
+
+# OpenAI: needs OPENAI_API_KEY
+[models.gpt]
+model = "openai/gpt-5.6"
+
+[models.gpt-mini]
+model = "openai/gpt-5.4-mini"

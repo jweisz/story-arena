@@ -1,19 +1,28 @@
 [project]
 name = "story-arena"
-version = "0.1.0"
-description = ""
-authors = [
-    {name = "Justin Weisz",email = "jweisz@us.ibm.com"}
-]
+version = "0.2.0"
+description = "Collaborative story writing by a room of LLM-powered writers"
+authors = [{ name = "Justin Weisz", email = "jweisz@us.ibm.com" }]
 readme = "README.md"
-requires-python = ">=3.13,<4.0"
+license = "Apache-2.0"
+requires-python = ">=3.13"
 dependencies = [
-    "beeai-framework (>=0.1.21,<0.2.0)",
-    "wikipedia-api (>=0.8.1,<0.9.0)",
-    "rich (>=14.0.0,<15.0.0)"
+    "litellm>=1.106",
+    "pydantic>=2.12",
+    "python-dotenv>=1.0",
+    "rich>=14.0",
 ]
 
+[dependency-groups]
+dev = ["ruff>=0.14"]
 
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
