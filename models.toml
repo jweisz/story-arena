@@ -21,6 +21,9 @@ model = "ollama_chat/granite4.2:3b"
 api_base = "http://localhost:11434"
 # granite4.2 is a thinking model; turning thinking off makes it about 10x faster
 reasoning_effort = "none"
+# small models occasionally get stuck repeating themselves; cap the response
+# length so a runaway generation fails fast and is retried
+max_tokens = 1024
 
 # LM Studio (https://lmstudio.ai): start the local server, then set `model`
 # to the identifier LM Studio shows for the model you have loaded
