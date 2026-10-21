@@ -301,12 +301,20 @@ async def run_consensus_phase(
                 else:
                     prompt = consensus_prompt + consensus_prompt_yield
 
+                # show the discussion as one transcript; one message per turn
+                # makes models continue the last message instead of replying
+                transcript = "\n\n".join(m["content"] for m in conversation)
                 prompt_components = [
                     system(agent["system_prompt"]),
                     system(agent["ideation_result"]),
                     system(prompt),
-                    *conversation,
-                    user(f"It is your turn to speak, {agent['name']}."),
+                    user(
+                        "Here is the conversation so far:\n\n###\n"
+                        f"{transcript or '(No one has spoken yet.)'}\n###\n\n"
+                        f"It is your turn to speak, {agent['name']}. Respond to "
+                        "what the other writers have said. Say something new; "
+                        "do not repeat or paraphrase earlier messages."
+                    ),
                 ]
 
                 log_prompt(components=prompt_components)
