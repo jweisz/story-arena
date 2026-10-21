@@ -120,7 +120,11 @@ def resolve_model(spec: str, aliases: dict[str, ModelConfig]) -> ModelConfig:
 
 
 def _strip_code_fences(text: str) -> str:
-    match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+    """Unwrap a response that is entirely one fenced block (```json ... ```).
+
+    Fences inside the JSON (e.g. code in a story sentence) are left alone.
+    """
+    match = re.fullmatch(r"\s*```(?:json)?\s*(.*?)\s*```\s*", text, re.DOTALL)
     return match.group(1) if match else text.strip()
 
 
