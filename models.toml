@@ -22,8 +22,9 @@ api_base = "http://localhost:11434"
 # granite4.2 is a thinking model; turning thinking off makes it about 10x faster
 reasoning_effort = "none"
 # small models occasionally get stuck repeating themselves; cap the response
-# length so a runaway generation fails fast and is retried
-max_tokens = 1024
+# length so a runaway generation fails fast and is retried. Ideation responses
+# need ~1-2k tokens, and at ~30 tokens/s this cap stays under the 120s timeout.
+max_tokens = 3072
 
 # LM Studio (https://lmstudio.ai): start the local server, then set `model`
 # to the identifier LM Studio shows for the model you have loaded

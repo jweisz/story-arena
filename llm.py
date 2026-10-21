@@ -42,6 +42,10 @@ class LLMError(Exception):
     pass
 
 
+class ResponseTruncatedError(ValueError):
+    """The model stopped because it hit its token limit (`max_tokens`)."""
+
+
 Message = dict[str, str]
 
 
@@ -157,15 +161,22 @@ class LLM:
             kwargs["api_key"] = api_key
         return kwargs
 
-    async def _call(self, messages: list[Message], **kwargs: Any) -> str:
+    async def _call(self, messages: list[Message], **kwargs: Any) -> tuple[str, str]:
+        """Return the response text and the finish reason."""
         response = await litellm.acompletion(
             messages=messages, **self._kwargs(), **kwargs
         )
-        return response.choices[0].message.content or ""
+        choice = response.choices[0]
+        return (choice.message.content or "", choice.finish_reason)
 
     async def complete(self, messages: list[Message]) -> str:
         """Return a free-form text response."""
-        return await self._with_retries(lambda: self._call(messages))
+
+        async def attempt() -> str:
+            text, _ = await self._call(messages)
+            return text
+
+        return await self._with_retries(attempt)
 
     async def structured[T: BaseModel](
         self, schema: type[T], messages: list[Message]
@@ -173,7 +184,13 @@ class LLM:
         """Return a response parsed into the given Pydantic schema."""
 
         async def attempt() -> T:
-            text = await self._call(messages, response_format=schema)
+            text, finish_reason = await self._call(messages, response_format=schema)
+            if finish_reason == "length":
+                # cut-off JSON can't be parsed; say why instead of a parse error
+                raise ResponseTruncatedError(
+                    "response was cut off by the token limit; "
+                    "raise max_tokens for this model in models.toml"
+                )
             return schema.model_validate_json(_strip_code_fences(text))
 
         return await self._with_retries(attempt)
