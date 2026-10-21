@@ -222,7 +222,7 @@ Issues and pull requests are welcome at <https://github.com/jweisz/story-arena>.
 If you use Story Arena in your research, please cite [our paper](https://arxiv.org/abs/2511.05410):
 
 ```bibtex
-@article{abs-2511-05410,
+@article{weisz2025story,
   author = {Weisz, Justin D. and Muller, Michael J. and Varshney, Kush R.},
   title = {Story Arena: {A} Multi-Agent Environment for Envisioning the Future of Software Engineering},
   journal = {CoRR},
