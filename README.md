@@ -115,10 +115,16 @@ If none of these sets a model, Story Arena stops and tells you which writer file
 
 | Alias | Model |
 | --- | --- |
-| `local` | `ollama_chat/granite4.2:3b` (thinking disabled for speed) |
+| `local` | `ollama_chat/granite4.2:3b` (thinking disabled for speed; uses `OLLAMA_API_BASE`) |
 | `lmstudio` | `lm_studio/qwen/qwen3-8b`: change this to the model you have loaded |
 | `claude`, `claude-opus`, `claude-haiku` | `anthropic/claude-sonnet-5-5`, `claude-opus-5-5`, `claude-haiku-5-5` |
 | `gpt`, `gpt-mini` | `openai/gpt-5.6`, `openai/gpt-5.4-mini` |
+
+To use Ollama on another machine, point `OLLAMA_API_BASE` at it, either in `.env` or for a single run:
+
+```bash
+OLLAMA_API_BASE=http://my-server.local:11434 mise run swe -- --model local
+```
 
 Add your own:
 
