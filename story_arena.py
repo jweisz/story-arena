@@ -4,74 +4,26 @@ import datetime
 import logging
 import os
 import random
+import sys
 from textwrap import dedent
 
-from beeai_framework.adapters.openai.backend.chat import OpenAIChatModel
-from beeai_framework.adapters.watsonx.backend.chat import WatsonxChatModel
-from beeai_framework.backend import (
-    AnyMessage,
-    AssistantMessage,
-    ChatModelParameters,
-    SystemMessage,
-    UserMessage,
-)
-from beeai_framework.backend.chat import ChatModel
-from beeai_framework.errors import AbortError
-from beeai_framework.utils.cancellation import AbortSignal
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from rich.console import Console
 
+from llm import (
+    LLM,
+    LLMError,
+    Message,
+    assistant,
+    load_model_aliases,
+    resolve_model,
+    system,
+    user,
+)
+
 # Rich console
 console = Console()
-
-# Global constants
-TIMEOUT_DURATION = 120
-
-MODELS = {
-    "rits:deepseek-v2-5": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/deepseek-v2-5",
-        "model_name": "deepseek-ai/DeepSeek-V2.5",
-    },
-    "rits:granite-3-3-8b-instruct": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/granite-3-3-8b-instruct",
-        "model_name": "ibm-granite/granite-3.3-8b-instruct",
-    },
-    "rits:granite-4-0-small-franconia": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/granite-4-0-small-franconia",
-        "model_name": "ibm-granite/granite-4.0-small-prerelease-franconia.r250523a",
-    },
-    "rits:llama-4-mvk-17b-128e-fp8": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/llama-4-mvk-17b-128e-fp8",
-        "model_name": "meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
-    },
-    "rits:llama-4-scout-17b-16e": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/llama-4-scout-17b-16e",
-        "model_name": "meta-llama/llama-4-scout-17b-16e",
-    },
-    "rits:microsoft-phi-4": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/microsoft-phi-4",
-        "model_name": "microsoft/phi-4",
-    },
-    "rits:mistral-small-3-1-24b-2503": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/mistral-small-3-1-24b-2503",
-        "model_name": "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
-    },
-    "rits:qwen2-5-72b-instruct": {
-        "base_url": "https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/qwen2-5-72b-instruct",
-        "model_name": "Qwen/Qwen2.5-72B-Instruct",
-    },
-    "watsonx:granite-3-3-8b-instruct": {
-        "model_name": "ibm/granite-3-3-8b-instruct",
-    },
-    "watsonx:llama-4-maverick-17b-128e-instruct-fp8": {
-        "model_name": "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
-    },
-    "watsonx:mistral-large": {"model_name": "mistralai/mistral-large"},
-    "watsonx:mistral-small-3-1-24b-instruct-2503": {
-        "model_name": "mistralai/mistral-small-3-1-24b-instruct-2503"
-    },
-}
 
 
 def setup_logging(log_dir=None) -> None:
@@ -83,6 +35,8 @@ def setup_logging(log_dir=None) -> None:
 
     if log_dir is None:
         log_dir = create_log_directory()
+    else:
+        os.makedirs(log_dir, exist_ok=True)
 
     console.print(f"[grey35]Logging to {log_dir}[/]")
 
@@ -109,11 +63,14 @@ def setup_logging(log_dir=None) -> None:
         "httpx",
         "httpcore.connection",
         "httpcore.http11",
-        "openai._base_client",
+        "LiteLLM",
         "asyncio",
     ]:
-        logging.getLogger(name=logger_name).setLevel(logging.DEBUG)
-        logging.getLogger(name=logger_name).addHandler(debug_file_handler)
+        library_logger = logging.getLogger(name=logger_name)
+        library_logger.setLevel(logging.DEBUG)
+        # LiteLLM attaches its own console handler; keep its output in the file
+        library_logger.handlers = [debug_file_handler]
+        library_logger.propagate = False
         formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
         debug_file_handler.setFormatter(formatter)
 
@@ -123,11 +80,15 @@ def log(msg: str) -> None:
     logging.getLogger(name="story_arena").info(msg=msg)
 
 
-def log_prompt(components: list[AnyMessage]) -> None:
+def log_prompt(components: list[Message]) -> None:
     logger = logging.getLogger(name="story_arena_prompts")
     logger.info(msg=f"{'*' * 27} → Prompt ← {'*' * 27}")
     for c in components:
-        logger.info(f"{c}")
+        logger.info(f"[{c['role']}] {c['content']}")
+
+
+def log_retry(msg: str) -> None:
+    log(f"[red bold]→ {msg}[/]")
 
 
 def parse_model_name_from_position_statement(
@@ -136,60 +97,18 @@ def parse_model_name_from_position_statement(
     """Parse the model name from the first line of the given position statement.
     For example:
     ```
-      # rits:granite-3-3-8b-instruct
+      # ollama_chat/granite4.2:3b
       My position is...
     ```
 
-    results in `rits:granite-3-3-8b-instruct`"""
+    results in `ollama_chat/granite4.2:3b`"""
     lines = position_statement.split("\n")
     if lines[0].startswith("#"):
-        model = lines[0].split("#")[1].strip()
+        model = lines[0].removeprefix("#").strip()
         rest = "\n".join(lines[1:])
         return (model, rest)
     else:
-        console.print("[red] no # found[/]")
         return (None, position_statement)
-
-
-def create_llm(
-    model_name: str, temperature: float, api_key=""
-) -> ChatModel | OpenAIChatModel:
-    load_dotenv()
-
-    if model_name.startswith("ollama:"):
-        llm = ChatModel.from_name(
-            model_name,
-            options={"temperature": temperature},
-        )
-    elif model_name.startswith("rits:"):
-        api_key = os.getenv("RITS_API_KEY")
-        info = MODELS[model_name]
-        settings = {
-            "extra_headers": {"RITS_API_KEY": api_key},
-            "api_key": api_key,
-            "base_url": info["base_url"] + "/v1",
-        }
-        llm = OpenAIChatModel(
-            model_id=info["model_name"],
-            settings=settings,
-            parameters=ChatModelParameters(temperature=temperature),
-        )
-    elif model_name.startswith("watsonx"):
-        base_url = os.getenv("WATSONX_BASE_URL")
-        api_key = os.getenv("WATSONX_API_KEY")
-        project_id = os.getenv("WATSONX_PROJECT_ID")
-        info = MODELS[model_name]
-        settings = {
-            "base_url": base_url,
-            "api_key": api_key,
-            "project_id": project_id,
-        }
-        llm = WatsonxChatModel(model_id=info["model_name"], settings=settings)
-    else:
-        raise ValueError(
-            "Invalid model name. It should start with 'ollama:', 'openai:', or 'rits:'."
-        )
-    return llm
 
 
 # Ideation phase for a single agent
@@ -290,53 +209,24 @@ async def run_ideation_phase(agent) -> str:
             description="Other elements or details that are pertinent to the kind of story you want to tell"
         )
 
-    log_prompt(
-        components=[
-            SystemMessage(agent["system_prompt"]),
-            SystemMessage(ideation_prompt),
-        ]
+    # the phase instructions go in a user message because some providers
+    # (e.g. Anthropic) require at least one user message
+    messages = [system(agent["system_prompt"]), user(ideation_prompt)]
+    log_prompt(components=messages)
+
+    result = await agent["llm"].structured(schema=IdeationResult, messages=messages)
+
+    ideation_result = dedent(
+        text=f"""These are your ideas for the story:
+        Genre: {result.genre}
+        Setting: {result.setting}
+        Characters: {result.characters}
+        Shape: {result.shape}
+        Plot: {result.plot}
+        Conflict: {result.conflict}
+        Other elements: {result.other_elements}
+        """
     )
-
-    success = False
-    attempt = 0
-    result = None
-    while not success:
-        try:
-            result = await agent["llm"].create_structure(
-                schema=IdeationResult,
-                messages=[
-                    SystemMessage(agent["system_prompt"]),
-                    SystemMessage(ideation_prompt),
-                ],
-                max_retries=3,
-                abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
-            )
-            success = True
-        except AbortError:
-            attempt = attempt + 1
-            log(
-                f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
-            )
-            # logging.getLogger(name='openai._base_client').setLevel(level=logging.DEBUG)
-
-    if result is None:
-        raise AbortError("Ideation phase failed to complete within the allotted time.")
-
-    try:
-        ideation_result = dedent(
-            text=f"""These are your ideas for the story:
-            Genre: {result.object.get("genre", "Unknown")}
-            Setting: {result.object.get("setting", "Unknown")}
-            Characters: {result.object.get("characters", "Unknown")}
-            Shape: {result.object.get("shape", "Unknown")}
-            Plot: {result.object.get("plot", "Unknown")}
-            Conflict: {result.object.get("conflict", "Unknown")}
-            Other elements: {result.object.get("other_elements", "Unknown")}
-            """
-        )
-    except KeyError as e:
-        log(f"[red bold]Unable to deserialize LLM response:\n{repr(result)}")
-        raise e
 
     return ideation_result
 
@@ -354,7 +244,7 @@ class Utterance(BaseModel):
 # Consensus phase with round-robin conversation
 async def run_consensus_phase(
     agents, min_agent_turns=2, max_agent_turns=10
-) -> list[UserMessage]:
+) -> list[Message]:
     min_turns = min_agent_turns * len(agents)
     max_turns = max_agent_turns * len(agents)
     consensus_prompt = dedent(
@@ -368,6 +258,12 @@ async def run_consensus_phase(
               - Share your own opinions before blindly agreeing to those of other writers.
               - Challenge the ideas of other writers before accepting them.
               - Argue for choices that align with and support your position statement.
+              - The story has one cast of characters, and everyone brainstormed
+                different ones. Work out with the group who the protagonist and the
+                other main characters are, with one name each. If another writer's
+                character fills the same role as one of yours, argue for yours or adopt
+                theirs, but don't keep calling the same character by a different name.
+                Once the group settles on a name, use it.
               - You may address the other writers directly by name, but do not speak for them.
               - Do not prefix your messages with your own name or the names of other writers.
               - Do not repeat statements that have already been made.
@@ -378,7 +274,8 @@ async def run_consensus_phase(
               """
     )
     consensus_prompt_yield = dedent(
-        text="""- When you are satisfied with all of the decisions that have been made, tell the
+        text=f"""- When you are satisfied with all of the decisions that have been made,
+             including who the characters are and what they are called, tell the
              group "I yield" (and only "I yield" with no other text). If the group does not
              reach consensus after each writer takes {max_agent_turns} turns ({max_turns}
              turns overall), the Consensus phase will end, possibly with some decisions left
@@ -389,7 +286,7 @@ async def run_consensus_phase(
     turn = 0
 
     # create the conversational space
-    conversation: list[UserMessage] = []
+    conversation: list[Message] = []
 
     # randomize the order
     shuffled_agents = agents
@@ -411,39 +308,30 @@ async def run_consensus_phase(
                 else:
                     prompt = consensus_prompt + consensus_prompt_yield
 
+                # show the discussion as one transcript; one message per turn
+                # makes models continue the last message instead of replying
+                transcript = "\n\n".join(m["content"] for m in conversation)
                 prompt_components = [
-                    SystemMessage(content=agent["system_prompt"]),
-                    SystemMessage(content=prompt),
-                    *conversation,
+                    system(agent["system_prompt"]),
+                    system(agent["ideation_result"]),
+                    system(prompt),
+                    user(
+                        "Here is the conversation so far:\n\n###\n"
+                        f"{transcript or '(No one has spoken yet.)'}\n###\n\n"
+                        f"It is your turn to speak, {agent['name']}. Respond to "
+                        "what the other writers have said. Say something new; "
+                        "do not repeat or paraphrase earlier messages."
+                    ),
                 ]
 
                 log_prompt(components=prompt_components)
 
-                success = False
-                attempt = 0
-                result = None
-                while not success:
-                    try:
-                        result = await agent["llm"].create_structure(
-                            schema=Utterance,
-                            messages=prompt_components,
-                            max_retries=3,
-                            abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
-                        )
-                        success = True
-                    except AbortError:
-                        attempt = attempt + 1
-                        console.print(
-                            f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
-                        )
+                result = await agent["llm"].structured(
+                    schema=Utterance, messages=prompt_components
+                )
 
-                if result is None:
-                    raise AbortError(
-                        "Consensus phase failed to complete within the allotted time."
-                    )
-
-                message = result.object.get("message", "")
-                conversation.append(UserMessage(f"{agent['name']}: {message}"))
+                message = result.message
+                conversation.append(user(f"{agent['name']}: {message}"))
                 log(
                     f"[magenta][bold]{agent['name']}[/bold]: [cyan]|[/cyan]{message}[cyan]|[/cyan][/]"
                 )
@@ -463,43 +351,37 @@ async def run_consensus_phase(
     # each agent summarizes the decisions made in the conversation
     for agent in agents:
         summary_prompt = dedent(
-            text="""This is the conversation you just had
-                 with the other writers in the writing room. Produce a summary
+            text="""Produce a summary
                  of your interpretation of the major decisions that were made.
                  Your interpretation may differ from other writers. You may also
                  may wish to override the consensus decisions that were reached
                  if you believe that your own views will ultimately result in a
                  better story. You will use this summary to aid your writing
-                 process."""
+                 process.
+
+                 Start the summary with the cast: list each main character with
+                 the name the group agreed on and their role in the story. Use
+                 the group's names, not the ones from your own brainstorming,
+                 even where you disagree with other decisions. If the group never
+                 settled on a name for a character, pick the one used most in the
+                 conversation."""
         )
 
         log(f"[cyan][bold]{agent['name']}'s summary[/bold][/]")
 
-        success = False
-        attempt = 0
-        result = None
-        while not success:
-            try:
-                result = await agent["llm"].create(
-                    messages=[
-                        SystemMessage(agent["system_prompt"]),
-                        SystemMessage(summary_prompt),
-                        *conversation,
-                    ],
-                    max_retries=3,
-                    abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
-                )
-                success = True
-            except AbortError:
-                attempt = attempt + 1
-                log(
-                    f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
-                )
-
-        if result is None:
-            raise AbortError("Summary failed to complete within the allotted time.")
-
-        summary = result.messages[-1].content[-1].text
+        # as in the discussion, pass one transcript and put the instruction
+        # last, or the model continues the conversation instead of summarizing
+        transcript = "\n\n".join(m["content"] for m in conversation)
+        summary = await agent["llm"].complete(
+            messages=[
+                system(agent["system_prompt"]),
+                system(agent["ideation_result"]),
+                user(
+                    "Here is the conversation you just had with the other "
+                    f"writers:\n\n###\n{transcript}\n###\n\n{summary_prompt}"
+                ),
+            ]
+        )
         log(f"[magenta][bold]{agent['name']}[/bold]: {summary}[/]")
         agent["consensus_summary"] = summary
     return conversation
@@ -543,13 +425,17 @@ async def run_writing_phase(
           of single quotation marks (').
         - Do not repeat or rephrase past sentences that already exist in the story.
         - Do not rehash past ideas that already exist in the story.
+        - Keep the characters consistent. If a character already appears in the
+          story, use the same name for them, even if your notes call them
+          something else. Do not introduce a new character to fill a role that
+          an existing character already has.
         - Keep a consistent perspective and tell the story with a consistent
           narrator.
         - DO NOT REPEAT SENTENCES THAT ALREADY EXIST!
         """
     )
 
-    if style_instructions is not None:
+    if style_instructions:
         writing_prompt = writing_prompt + f"""- {style_instructions}"""
 
     # text=f"""You are in the Writing phase of the story-writing process. Your job is
@@ -628,46 +514,26 @@ async def run_writing_phase(
                 """
             )
 
-            # for whatever reason, RITS likes to timeout on these calls, so we need to be a bit more
-            # agressive...
-            success = False
-            attempt = 0
-            result = None
-            while not success:
-                try:
-                    result = await agent["llm"].create_structure(
-                        schema=Sentence,
-                        messages=[
-                            SystemMessage(agent["system_prompt"]),
-                            SystemMessage(writing_prompt),
-                            AssistantMessage(summary_prompt),
-                            UserMessage(story_prompt),
-                        ],
-                        max_retries=5,
-                        abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
-                    )
-                    success = True
-                except AbortError:
-                    attempt = attempt + 1
-                    log(
-                        f"[red bold]→ Writer {agent['name']} timed out, trying again (attempt {attempt})[/]"
-                    )
+            result = await agent["llm"].structured(
+                schema=Sentence,
+                messages=[
+                    system(agent["system_prompt"]),
+                    system(writing_prompt),
+                    assistant(summary_prompt),
+                    user(story_prompt),
+                ],
+            )
 
-            if result is None:
-                raise AbortError(
-                    "Writing phase failed to complete within the allotted time."
-                )
+            new_sentence = result.sentence.strip()
 
-            new_sentence = result.object.get("sentence", "")
-
-            if new_sentence is None or new_sentence == "":
+            if new_sentence == "":
                 log(f"[green bold]Writer {agent['name']} has yielded[/]")
             else:
                 # check this against all the previous sentences
                 # if we find an exact match, the author loses their turn
                 is_new_sentence = True
                 for s in story.story:
-                    if s.sentence.lower() == result.object.get("sentence", "").lower():
+                    if s.sentence.lower() == new_sentence.lower():
                         log(
                             f"[red bold]→ Writer {agent['name']} generated a pre-existing sentence, ignoring[/]"
                         )
@@ -684,7 +550,7 @@ async def run_writing_phase(
     return story
 
 
-async def generate_story_title(llm, story: Story) -> str:
+async def generate_story_title(llm: LLM, story: Story) -> str:
     title_prompt = dedent(
         text="""You are a publisher. Your job is to read a story and generate a
              compelling title for it that captures the essence of the story and
@@ -694,46 +560,47 @@ async def generate_story_title(llm, story: Story) -> str:
     class Title(BaseModel):
         title: str = Field(description="The title of the story")
 
-    success = False
-    attempt = 0
-    result = None
-    while not success:
-        try:
-            result = await llm.create_structure(
-                schema=Title,
-                messages=[
-                    SystemMessage(title_prompt),
-                    UserMessage(f"This is the story:\n###\n{story.render()}\n###"),
-                ],
-                max_retries=5,
-                abort_signal=AbortSignal.timeout(duration=TIMEOUT_DURATION),
-            )
-            success = True
-        except AbortError:
-            attempt = attempt + 1
-            log(
-                f"[red bold]→ Title generation timed out, trying again (attempt {attempt})[/]"
-            )
+    result = await llm.structured(
+        schema=Title,
+        messages=[
+            system(title_prompt),
+            user(f"This is the story:\n###\n{story.render()}\n###"),
+        ],
+    )
 
-    if result is None:
-        raise AbortError(
-            "Title generation failed to complete within the allotted time."
-        )
-
-    title = result.object.get("title", "")
-    return title
+    return result.title
 
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description="✏️ Story Arena!")
     parser.add_argument(
-        "prompt_files", type=str, nargs="+", help="Paths to agent prompt files"
+        "prompt_files", type=str, nargs="*", help="Paths to agent prompt files"
     )
     parser.add_argument(
         "--story-prompt",
         type=str,
-        required=True,
         help="Path to file containing the story prompt",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        help="Model (alias or LiteLLM model string) for writers whose file has no '# model' header",
+    )
+    parser.add_argument(
+        "--model-override",
+        type=str,
+        help="Model (alias or LiteLLM model string) to use for every writer, ignoring file headers",
+    )
+    parser.add_argument(
+        "--models-config",
+        type=str,
+        default="models.toml",
+        help="Path to a TOML file of model aliases (default: models.toml)",
+    )
+    parser.add_argument(
+        "--list-models",
+        action="store_true",
+        help="List the model aliases in the models config and exit",
     )
     parser.add_argument(
         "--style",
@@ -747,21 +614,34 @@ async def main() -> None:
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.2,
-        help="Temperature for the LLM (default: 0.2)",
+        help="Temperature for every writer, overriding models.toml "
+        "(default: each model's own default)",
     )
     args = parser.parse_args()
+
+    load_dotenv()
+    aliases = load_model_aliases(args.models_config)
+
+    if args.list_models:
+        if not aliases:
+            console.print(f"No model aliases found in {args.models_config}")
+        for alias in aliases.values():
+            console.print(f"[cyan]{alias.name}[/] → {alias.model}")
+        return
+
+    if args.story_prompt is None or not args.prompt_files:
+        parser.error("--story-prompt and at least one writer file are required")
 
     # Set up logging
     setup_logging(log_dir=args.log_dir)
 
     # Read story prompt from file
-    with open(args.story_prompt, "r") as file:
+    with open(args.story_prompt) as file:
         story_prompt = file.read().strip()
 
     # Read style instructions
     if args.style is not None:
-        with open(args.style, "r") as file:
+        with open(args.style) as file:
             style_instructions = file.read().strip()
     else:
         style_instructions = ""
@@ -769,25 +649,33 @@ async def main() -> None:
     # Read prompt files and create agents
     agents = []
     for file_path in args.prompt_files:
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             name = file_path.split("/")[-1].split(".")[0]
             position_statement = file.read().strip()
             (model_name, position_statement) = parse_model_name_from_position_statement(
                 position_statement=position_statement
             )
 
+            # precedence: --model-override, then the file header, then --model
+            model_name = args.model_override or model_name or args.model
             if model_name is None:
-                raise ValueError(
-                    f"Unable to parse model name from: {position_statement}"
+                parser.error(
+                    f"{file_path} has no '# <model>' header; pass --model to "
+                    "choose a default model (or --model-override for all writers)"
                 )
 
-            llm = create_llm(model_name=model_name, temperature=args.temperature)
+            try:
+                model_config = resolve_model(model_name, aliases)
+            except ValueError as e:
+                parser.error(f"{file_path}: {e}")
+
+            llm = LLM(model_config, temperature=args.temperature, on_retry=log_retry)
             agents.append(
                 {
                     "name": name,
                     "position_statement": position_statement,
                     "llm": llm,
-                    "model_name": model_name,
+                    "model_name": str(llm),
                 }
             )
 
@@ -816,11 +704,12 @@ async def main() -> None:
 
     # Print agent information
     log("[bold cyan]Welcome to Story Arena![/]")
-    log(f"[grey35]Temperature: {args.temperature}[/]")
     log(f"[grey35]Story prompt: {story_prompt}[/]")
     for agent in agents:
+        temperature = agent["llm"].temperature
+        temperature = "model default" if temperature is None else temperature
         log(
-            f"[cyan]Writer {agent['name']} has entered the arena![/] [grey35]→ {agent['model_name']}[/]"
+            f"[cyan]Writer {agent['name']} has entered the arena![/] [grey35]→ {agent['model_name']}, temperature: {temperature}[/]"
         )
 
     # Run the workflow
@@ -854,4 +743,10 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except LLMError as e:
+        log(f"[red bold]Error:[/] {e}")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

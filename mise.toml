@@ -1,0 +1,28 @@
+[tools]
+python = "3.13"
+uv = "latest"
+
+[tasks.story]
+description = "Run Story Arena (pass arguments after --)"
+run = "uv run story_arena.py"
+
+[tasks.swe]
+description = "Run the future-of-software-engineering scenario (pass --model <alias> after --)"
+run = """
+uv run story_arena.py \
+  writers/JW.txt writers/KV2.txt writers/MM2.txt writers/AI.txt \
+  --story-prompt prompts/future_swe_complex_v4.txt \
+  --style styles/martha_wells.txt
+"""
+
+[tasks.models]
+description = "List the model aliases in models.toml"
+run = "uv run story_arena.py --list-models"
+
+[tasks.lint]
+description = "Lint and check formatting"
+run = ["uv run ruff check .", "uv run ruff format --check ."]
+
+[tasks.format]
+description = "Auto-fix lint issues and format code"
+run = ["uv run ruff check --fix .", "uv run ruff format ."]

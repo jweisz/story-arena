@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use Story Arena in your research, please cite our paper."
+title: "Story Arena"
+abstract: "A multi-agent environment in which LLM-powered writers collaborate on a short story."
+type: software
+authors:
+  - family-names: Weisz
+    given-names: Justin D.
+repository-code: "https://github.com/jweisz/story-arena"
+license: Apache-2.0
+preferred-citation:
+  type: article
+  title: "Story Arena: A Multi-Agent Environment for Envisioning the Future of Software Engineering"
+  authors:
+    - family-names: Weisz
+      given-names: Justin D.
+    - family-names: Muller
+      given-names: Michael J.
+    - family-names: Varshney
+      given-names: Kush R.
+  journal: CoRR
+  volume: "abs/2511.05410"
+  year: 2025
+  doi: "10.48550/arXiv.2511.05410"
+  url: "https://doi.org/10.48550/arXiv.2511.05410"
