@@ -132,13 +132,15 @@ class LLM:
     def __init__(
         self,
         config: ModelConfig,
-        temperature: float,
+        temperature: float | None = None,
         on_retry: Callable[[str], None] | None = None,
     ) -> None:
         self.config = config
         self.on_retry = on_retry
+        # an explicit temperature (from --temperature) wins, then the alias's;
+        # None means don't send one, so the model's own default applies
         self.temperature = (
-            config.temperature if config.temperature is not None else temperature
+            temperature if temperature is not None else config.temperature
         )
 
     def __str__(self) -> str:
@@ -149,10 +151,11 @@ class LLM:
     def _kwargs(self) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self.config.model,
-            "temperature": self.temperature,
             "timeout": TIMEOUT_DURATION,
             **self.config.extra,
         }
+        if self.temperature is not None:
+            kwargs["temperature"] = self.temperature
         if self.config.api_base:
             kwargs["api_base"] = self.config.api_base
         if self.config.api_key_env:

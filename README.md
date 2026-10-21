@@ -133,7 +133,7 @@ Add your own:
 model = "openai/my-finetune"            # required: LiteLLM model string
 api_base = "https://llm.example.com/v1" # optional: custom endpoint
 api_key_env = "MY_SERVER_API_KEY"       # optional: env var holding the key
-temperature = 0.7                       # optional: overrides --temperature
+temperature = 0.7                       # optional: --temperature overrides it
 max_tokens = 1024                       # any other key is passed to litellm.acompletion()
 ```
 
@@ -170,7 +170,7 @@ uv run story_arena.py [options] WRITER_FILE [WRITER_FILE ...]
 | `--models-config PATH` | Model alias file (default: `models.toml`). |
 | `--list-models` | Print the configured aliases and exit. |
 | `--style PATH` | File containing style instructions for the Writing phase. |
-| `--temperature FLOAT` | Sampling temperature (default `0.2`). Models that don't accept a temperature, such as some reasoning models, ignore it. |
+| `--temperature FLOAT` | Sampling temperature for every writer, overriding any `temperature` in `models.toml`. If neither is set, each model uses its own default (recommended: model publishers tune these, e.g. Ollama's `qwen3:8b` defaults to 0.6). Models that don't accept a temperature, such as some reasoning models, ignore it. |
 | `--log-dir PATH` | Where to write logs (default `runs/run-<timestamp>/`). |
 
 ## Tasks

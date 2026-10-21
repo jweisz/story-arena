@@ -9,7 +9,8 @@
 #   model        (required) LiteLLM model string: "<provider>/<model>"
 #   api_base     (optional) endpoint URL, for local or self-hosted servers
 #   api_key_env  (optional) name of the env var that holds the API key
-#   temperature  (optional) overrides --temperature for this model
+#   temperature  (optional) for this model; --temperature overrides it. If
+#                neither is set, the model's own default temperature is used.
 #   any other key is passed straight through to litellm.acompletion()
 #
 # API keys never go in this file. Put them in .env (see .env.sample).

@@ -592,8 +592,8 @@ async def main() -> None:
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.2,
-        help="Temperature for the LLM (default: 0.2)",
+        help="Temperature for every writer, overriding models.toml "
+        "(default: each model's own default)",
     )
     args = parser.parse_args()
 
@@ -682,11 +682,12 @@ async def main() -> None:
 
     # Print agent information
     log("[bold cyan]Welcome to Story Arena![/]")
-    log(f"[grey35]Temperature: {args.temperature}[/]")
     log(f"[grey35]Story prompt: {story_prompt}[/]")
     for agent in agents:
+        temperature = agent["llm"].temperature
+        temperature = "model default" if temperature is None else temperature
         log(
-            f"[cyan]Writer {agent['name']} has entered the arena![/] [grey35]→ {agent['model_name']}[/]"
+            f"[cyan]Writer {agent['name']} has entered the arena![/] [grey35]→ {agent['model_name']}, temperature: {temperature}[/]"
         )
 
     # Run the workflow
