@@ -268,7 +268,7 @@ async def run_consensus_phase(
               """
     )
     consensus_prompt_yield = dedent(
-        text="""- When you are satisfied with all of the decisions that have been made, tell the
+        text=f"""- When you are satisfied with all of the decisions that have been made, tell the
              group "I yield" (and only "I yield" with no other text). If the group does not
              reach consensus after each writer takes {max_agent_turns} turns ({max_turns}
              turns overall), the Consensus phase will end, possibly with some decisions left
@@ -303,6 +303,7 @@ async def run_consensus_phase(
 
                 prompt_components = [
                     system(agent["system_prompt"]),
+                    system(agent["ideation_result"]),
                     system(prompt),
                     *conversation,
                     user(f"It is your turn to speak, {agent['name']}."),
@@ -350,6 +351,7 @@ async def run_consensus_phase(
         summary = await agent["llm"].complete(
             messages=[
                 system(agent["system_prompt"]),
+                system(agent["ideation_result"]),
                 system(summary_prompt),
                 *conversation,
             ]
