@@ -2,7 +2,7 @@
 name = "story-arena"
 version = "0.2.0"
 description = "Collaborative story writing by a room of LLM-powered writers"
-authors = [{ name = "Justin Weisz", email = "jweisz@us.ibm.com" }]
+authors = [{ name = "Justin Weisz" }]
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.13"
