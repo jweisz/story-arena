@@ -29,6 +29,7 @@ Writers go through three phases. First they **ideate** on their own. Then they a
 - [Output and logs](#output-and-logs)
 - [Project structure](#project-structure)
 - [Contributing](#contributing)
+- [Citation](#citation)
 - [License](#license)
 
 ## How it works
@@ -157,7 +158,7 @@ Example writer file:
 You are a traditionalist who believes that software engineering is best left to humans...
 ```
 
-The `swe` task uses the scenario from our paper, where the writers imagine a future in which AI has changed how software engineers work. It uses the writers `JW`, `KV2`, `MM2` and `AI`, the prompt `prompts/future_swe_complex_v4.txt` and the style `styles/martha_wells.txt`. The other writers (`AntagonisticAnnie`, `FickleFannie`, `LogicalLisa`, `UncompromisingUlysses`, …) are personality archetypes you can mix in.
+The `swe` task uses the scenario from [our paper](https://arxiv.org/abs/2511.05410), where the writers imagine a future in which AI has changed how software engineers work. It uses the writers `JW`, `KV2`, `MM2` and `AI`, the prompt `prompts/future_swe_complex_v4.txt` and the style `styles/martha_wells.txt`. The other writers (`AntagonisticAnnie`, `FickleFannie`, `LogicalLisa`, `UncompromisingUlysses`, …) are personality archetypes you can mix in.
 
 ## Command-line reference
 
@@ -215,6 +216,21 @@ Issues and pull requests are welcome at <https://github.com/jweisz/story-arena>.
 1. Fork the repo and create a branch.
 2. Make your change, then run `mise run format` and `mise run lint`.
 3. Open a pull request describing what you changed and how you tested it (for example, a short `mise run swe -- --model-override local` run).
+
+## Citation
+
+If you use Story Arena in your research, please cite [our paper](https://arxiv.org/abs/2511.05410):
+
+```bibtex
+@article{abs-2511-05410,
+  author = {Weisz, Justin D. and Muller, Michael J. and Varshney, Kush R.},
+  title = {Story Arena: {A} Multi-Agent Environment for Envisioning the Future of Software Engineering},
+  journal = {CoRR},
+  volume = {abs/2511.05410},
+  year = {2025},
+  url = {https://doi.org/10.48550/arXiv.2511.05410},
+}
+```
 
 ## License
 
