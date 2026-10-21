@@ -2,10 +2,6 @@
 python = "3.13"
 uv = "latest"
 
-[tasks.install]
-description = "Install dependencies into .venv"
-run = "uv sync"
-
 [tasks.story]
 description = "Run Story Arena (pass arguments after --)"
 run = "uv run story_arena.py"

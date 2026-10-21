@@ -54,12 +54,10 @@ Every LLM call except the summaries uses structured output (JSON matching a Pyda
 ```bash
 git clone https://github.com/jweisz/story-arena.git
 cd story-arena
-
-mise install          # install Python 3.13 + uv
-mise run install      # create .venv and install dependencies
-
 cp .env.sample .env   # then add API keys for the providers you'll use
 ```
+
+There's no separate install step. The first time you run a task, mise installs Python 3.13 and uv, and uv creates `.venv` with the dependencies. mise may first ask you to trust the repo's `mise.toml`.
 
 Run the software-engineering scenario with every writer on Claude:
 
@@ -78,7 +76,6 @@ mise run swe -- --model-override local
 <summary>Without mise</summary>
 
 ```bash
-uv sync
 uv run story_arena.py writers/JW.txt writers/KV2.txt writers/MM2.txt writers/AI.txt \
   --story-prompt prompts/future_swe_complex_v4.txt \
   --style styles/martha_wells.txt \
@@ -183,7 +180,6 @@ uv run story_arena.py [options] WRITER_FILE [WRITER_FILE ...]
 
 | Task | What it does |
 | --- | --- |
-| `mise run install` | `uv sync`: create `.venv` and install dependencies |
 | `mise run story -- <args>` | Run Story Arena with any arguments |
 | `mise run swe -- --model <m>` | Run the software-engineering scenario |
 | `mise run models` | List model aliases from `models.toml` |
@@ -217,9 +213,8 @@ styles/          # writing-style guides
 Issues and pull requests are welcome at <https://github.com/jweisz/story-arena>.
 
 1. Fork the repo and create a branch.
-2. `mise run install`
-3. Make your change, then run `mise run format` and `mise run lint`.
-4. Open a pull request describing what you changed and how you tested it (for example, a short `mise run swe -- --model-override local` run).
+2. Make your change, then run `mise run format` and `mise run lint`.
+3. Open a pull request describing what you changed and how you tested it (for example, a short `mise run swe -- --model-override local` run).
 
 ## License
 
