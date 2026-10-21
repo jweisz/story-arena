@@ -258,6 +258,12 @@ async def run_consensus_phase(
               - Share your own opinions before blindly agreeing to those of other writers.
               - Challenge the ideas of other writers before accepting them.
               - Argue for choices that align with and support your position statement.
+              - The story has one cast of characters, and everyone brainstormed
+                different ones. Work out with the group who the protagonist and the
+                other main characters are, with one name each. If another writer's
+                character fills the same role as one of yours, argue for yours or adopt
+                theirs, but don't keep calling the same character by a different name.
+                Once the group settles on a name, use it.
               - You may address the other writers directly by name, but do not speak for them.
               - Do not prefix your messages with your own name or the names of other writers.
               - Do not repeat statements that have already been made.
@@ -268,7 +274,8 @@ async def run_consensus_phase(
               """
     )
     consensus_prompt_yield = dedent(
-        text=f"""- When you are satisfied with all of the decisions that have been made, tell the
+        text=f"""- When you are satisfied with all of the decisions that have been made,
+             including who the characters are and what they are called, tell the
              group "I yield" (and only "I yield" with no other text). If the group does not
              reach consensus after each writer takes {max_agent_turns} turns ({max_turns}
              turns overall), the Consensus phase will end, possibly with some decisions left
@@ -344,24 +351,35 @@ async def run_consensus_phase(
     # each agent summarizes the decisions made in the conversation
     for agent in agents:
         summary_prompt = dedent(
-            text="""This is the conversation you just had
-                 with the other writers in the writing room. Produce a summary
+            text="""Produce a summary
                  of your interpretation of the major decisions that were made.
                  Your interpretation may differ from other writers. You may also
                  may wish to override the consensus decisions that were reached
                  if you believe that your own views will ultimately result in a
                  better story. You will use this summary to aid your writing
-                 process."""
+                 process.
+
+                 Start the summary with the cast: list each main character with
+                 the name the group agreed on and their role in the story. Use
+                 the group's names, not the ones from your own brainstorming,
+                 even where you disagree with other decisions. If the group never
+                 settled on a name for a character, pick the one used most in the
+                 conversation."""
         )
 
         log(f"[cyan][bold]{agent['name']}'s summary[/bold][/]")
 
+        # as in the discussion, pass one transcript and put the instruction
+        # last, or the model continues the conversation instead of summarizing
+        transcript = "\n\n".join(m["content"] for m in conversation)
         summary = await agent["llm"].complete(
             messages=[
                 system(agent["system_prompt"]),
                 system(agent["ideation_result"]),
-                system(summary_prompt),
-                *conversation,
+                user(
+                    "Here is the conversation you just had with the other "
+                    f"writers:\n\n###\n{transcript}\n###\n\n{summary_prompt}"
+                ),
             ]
         )
         log(f"[magenta][bold]{agent['name']}[/bold]: {summary}[/]")
@@ -407,6 +425,10 @@ async def run_writing_phase(
           of single quotation marks (').
         - Do not repeat or rephrase past sentences that already exist in the story.
         - Do not rehash past ideas that already exist in the story.
+        - Keep the characters consistent. If a character already appears in the
+          story, use the same name for them, even if your notes call them
+          something else. Do not introduce a new character to fill a role that
+          an existing character already has.
         - Keep a consistent perspective and tell the story with a consistent
           narrator.
         - DO NOT REPEAT SENTENCES THAT ALREADY EXIST!
