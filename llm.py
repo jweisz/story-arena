@@ -5,6 +5,7 @@ Model specs are LiteLLM model strings (e.g. `ollama_chat/granite4.2:3b`,
 aliases defined in `models.toml`.
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -170,9 +171,15 @@ class LLM:
 
     async def _call(self, messages: list[Message], **kwargs: Any) -> tuple[str, str]:
         """Return the response text and the finish reason."""
-        response = await litellm.acompletion(
-            messages=messages, **self._kwargs(), **kwargs
-        )
+        # LiteLLM's `timeout` isn't always a deadline for the whole request
+        # (an Ollama call once ran for 800s), so enforce one here as well
+        try:
+            response = await asyncio.wait_for(
+                litellm.acompletion(messages=messages, **self._kwargs(), **kwargs),
+                timeout=TIMEOUT_DURATION,
+            )
+        except TimeoutError as e:
+            raise TimeoutError(f"no response within {TIMEOUT_DURATION}s") from e
         choice = response.choices[0]
         return (choice.message.content or "", choice.finish_reason)
 
@@ -209,12 +216,14 @@ class LLM:
                 return await fn()
             except FATAL_ERRORS as e:
                 raise LLMError(f"{self} request failed: {e}") from e
-            except (openai.APIError, ValidationError, ValueError) as e:
+            except (openai.APIError, TimeoutError, ValidationError, ValueError) as e:
                 last_error = e
                 msg = (
                     f"{self}: attempt {attempt}/{MAX_ATTEMPTS} failed "
-                    f"({type(e).__name__}), trying again"
+                    f"({type(e).__name__})"
                 )
+                if attempt < MAX_ATTEMPTS:
+                    msg += ", trying again"
                 logger.warning(f"{msg}: {e}")
                 if self.on_retry:
                     self.on_retry(msg)
