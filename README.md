@@ -9,6 +9,8 @@
 
 <p align="center">
   <img src="docs/images/story-arena.jpg" alt="Four robot writers around a table, each with a thought bubble of story ideas, combining them into one shared idea" width="800">
+  <br>
+  <em>An AI-generated illustration of AI agents collaborating on a story. <a href="https://aiattribution.github.io/statements/AIA-EAI-Hin-R-?model=Gemini-v1.0">AIA EAI Hin R Gemini v1.0</a></em>
 </p>
 
 Story Arena puts several LLM-powered writers in a virtual writers' room and has them write a short story together. Each writer has its own persona and point of view (a *position statement*), and each one can run on a different model and backend: a local Ollama model can argue plot points with Claude and GPT.
