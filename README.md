@@ -1,11 +1,15 @@
 # ✏️ Story Arena
 
-[![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![mise](https://img.shields.io/badge/tasks-mise-6E56CF)](https://mise.jdx.dev/)
 [![LiteLLM](https://img.shields.io/badge/LLMs-LiteLLM-1F6FEB)](https://docs.litellm.ai/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+<p align="center">
+  <img src="docs/images/story-arena.jpg" alt="Four robot writers around a table, each with a thought bubble of story ideas, combining them into one shared idea" width="800">
+</p>
 
 Story Arena puts several LLM-powered writers in a virtual writers' room and has them write a short story together. Each writer has its own persona and point of view (a *position statement*), and each one can run on a different model and backend: a local Ollama model can argue plot points with Claude and GPT.
 
@@ -201,6 +205,7 @@ models.toml      # model aliases
 mise.toml        # tool versions and tasks
 pyproject.toml   # project metadata and dependencies (managed with uv)
 writers/         # writer personas
+docs/images/     # README images
 prompts/         # story prompts
 styles/          # writing-style guides
 ```

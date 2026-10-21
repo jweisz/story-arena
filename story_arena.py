@@ -435,7 +435,7 @@ async def run_writing_phase(
         """
     )
 
-    if style_instructions is not None:
+    if style_instructions:
         writing_prompt = writing_prompt + f"""- {style_instructions}"""
 
     # text=f"""You are in the Writing phase of the story-writing process. Your job is

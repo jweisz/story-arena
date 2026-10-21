@@ -5,7 +5,7 @@ description = "Collaborative story writing by a room of LLM-powered writers"
 authors = [{ name = "Justin Weisz" }]
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "litellm>=1.106",
     "pydantic>=2.12",
